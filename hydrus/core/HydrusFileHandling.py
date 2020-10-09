@@ -196,7 +196,7 @@ def GetFileInfo( path, mime = None, ok_to_look_for_hydrus_updates = False ):
         
         ( file_duration_in_s, stream_duration_in_s ) = HydrusVideoHandling.ParseFFMPEGDuration( ffmpeg_lines )
         
-        duration = int( file_duration_in_s * 1000 )
+        duration = int( file_duration_in_s * 1000 ) if file_duration_in_s is not None else 0
         
     
     if mime in HC.MIMES_THAT_DEFINITELY_HAVE_AUDIO:
