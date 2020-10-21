@@ -974,7 +974,11 @@ class ListBook( QW.QWidget ):
         
         for ( i, current_display_name ) in enumerate( current_display_names ):
             
-            if current_display_name > display_name:
+            try:
+                condition =  current_display_name > display_name
+            except TypeError:
+                condition =  current_display_name > str(display_name)
+            if condition:
                 
                 insertion_index = i
                 
