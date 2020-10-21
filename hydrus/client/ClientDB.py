@@ -659,8 +659,10 @@ class DB( HydrusDB.HydrusDB ):
                 self._controller.pub( 'modal_message', job_key )
                 
                 random.shuffle( names_to_analyze )
+
+                from tqdm import tqdm
                 
-                for name in names_to_analyze:
+                for name in tqdm(names_to_analyze):
                     
                     self._controller.frame_splash_status.SetText( 'analyzing ' + name )
                     job_key.SetVariable( 'popup_text_1', 'analyzing ' + name )
@@ -12975,10 +12977,12 @@ class DB( HydrusDB.HydrusDB ):
             hash_ids = self._STL( self._c.execute( 'SELECT hash_id FROM shape_search_cache WHERE searched_distance IS NULL or searched_distance < ?;', ( search_distance, ) ) )
             
             total_done_previously = total_num_hash_ids_in_cache - len( hash_ids )
+
+            from tqdm import tqdm
             
             job_key.SetVariable( 'popup_title', 'similar files duplicate pair discovery' )
             
-            for ( i, hash_id ) in enumerate( hash_ids ):
+            for ( i, hash_id ) in enumerate(tqdm(hash_ids)):
                 
                 if pub_job_key and not job_key_pubbed and HydrusData.TimeHasPassed( time_started + 5 ):
                     
