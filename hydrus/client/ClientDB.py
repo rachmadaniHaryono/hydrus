@@ -13285,11 +13285,9 @@ class DB( HydrusDB.HydrusDB ):
         
         group_of_hash_ids = self._STL( self._c.execute( 'SELECT hash_id FROM shape_search_cache WHERE searched_distance IS NULL or searched_distance < ?;', ( search_distance, ) ).fetchmany( 100 ) )
         
-        from tqdm import tqdm
-
         while len( group_of_hash_ids ) > 0:
             
-            for ( i, hash_id ) in enumerate( tqdm(group_of_hash_ids) ):
+            for ( i, hash_id ) in enumerate( group_of_hash_ids ):
                 
                 if work_time_float is not None and HydrusData.TimeHasPassedFloat( time_started_float + work_time_float ):
                     
