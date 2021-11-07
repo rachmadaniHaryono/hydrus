@@ -18,6 +18,8 @@ from hydrus.client import ClientData
 from hydrus.client.metadata import ClientTags
 from hydrus.client.metadata import ClientTagsHandling
 
+from hydrus.external import SystemPredicateParser
+
 PREDICATE_TYPE_TAG = 0
 PREDICATE_TYPE_NAMESPACE = 1
 PREDICATE_TYPE_PARENT = 2
@@ -170,12 +172,14 @@ NUMBER_TEST_OPERATOR_LESS_THAN = 0
 NUMBER_TEST_OPERATOR_GREATER_THAN = 1
 NUMBER_TEST_OPERATOR_EQUAL = 2
 NUMBER_TEST_OPERATOR_APPROXIMATE = 3
+NUMBER_TEST_OPERATOR_NOT_EQUAL = 4
 
 number_test_operator_to_str_lookup = {
     NUMBER_TEST_OPERATOR_LESS_THAN : '<',
     NUMBER_TEST_OPERATOR_GREATER_THAN : '>',
     NUMBER_TEST_OPERATOR_EQUAL : '=',
-    NUMBER_TEST_OPERATOR_APPROXIMATE : '\u2248'
+    NUMBER_TEST_OPERATOR_APPROXIMATE : CC.UNICODE_ALMOST_EQUAL_TO,
+    NUMBER_TEST_OPERATOR_NOT_EQUAL : CC.UNICODE_NOT_EQUAL_TO
 }
 
 number_test_str_to_operator_lookup = { value : key for ( key, value ) in number_test_operator_to_str_lookup.items() }
@@ -364,7 +368,7 @@ class FileSystemPredicates( object ):
                     
                     ( years, months, days, hours ) = age_value
                     
-                    age = ( ( ( ( ( ( ( years * 12 ) + months ) * 30 ) + days ) * 24 ) + hours ) * 3600 )
+                    age = ( years * 365 * 86400 ) + ( ( ( ( ( months * 30 ) + days ) * 24 ) + hours ) * 3600 )
                     
                     now = HydrusData.GetNow()
                     
@@ -378,7 +382,7 @@ class FileSystemPredicates( object ):
                         
                         self._common_info[ max_label ] = now - age
                         
-                    elif operator == '\u2248':
+                    elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                         
                         self._common_info[ min_label ] = now - int( age * 1.15 )
                         self._common_info[ max_label ] = now - int( age * 0.85 )
@@ -406,7 +410,7 @@ class FileSystemPredicates( object ):
                         self._common_info[ min_label ] = timestamp
                         self._common_info[ max_label ] = timestamp + 86400
                         
-                    elif operator == '\u2248':
+                    elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                         
                         self._common_info[ min_label ] = timestamp - 86400 * 30
                         self._common_info[ max_label ] = timestamp + 86400 * 30
@@ -430,7 +434,8 @@ class FileSystemPredicates( object ):
                 if operator == '<': self._common_info[ 'max_duration' ] = duration
                 elif operator == '>': self._common_info[ 'min_duration' ] = duration
                 elif operator == '=': self._common_info[ 'duration' ] = duration
-                elif operator == '\u2248':
+                elif operator == CC.UNICODE_NOT_EQUAL_TO: self._common_info[ 'not_duration' ] = duration
+                elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                     
                     if duration == 0:
                         
@@ -451,6 +456,7 @@ class FileSystemPredicates( object ):
                 if operator == '<': self._common_info[ 'max_framerate' ] = framerate
                 elif operator == '>': self._common_info[ 'min_framerate' ] = framerate
                 elif operator == '=': self._common_info[ 'framerate' ] = framerate
+                elif operator == CC.UNICODE_NOT_EQUAL_TO: self._common_info[ 'not_framerate' ] = framerate
                 
             
             if predicate_type == PREDICATE_TYPE_SYSTEM_NUM_FRAMES:
@@ -460,7 +466,8 @@ class FileSystemPredicates( object ):
                 if operator == '<': self._common_info[ 'max_num_frames' ] = num_frames
                 elif operator == '>': self._common_info[ 'min_num_frames' ] = num_frames
                 elif operator == '=': self._common_info[ 'num_frames' ] = num_frames
-                elif operator == '\u2248':
+                elif operator == CC.UNICODE_NOT_EQUAL_TO: self._common_info[ 'not_num_frames' ] = num_frames
+                elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                     
                     if num_frames == 0:
                         
@@ -494,7 +501,11 @@ class FileSystemPredicates( object ):
                     
                     self._common_info[ 'max_ratio' ] = ( ratio_width, ratio_height )
                     
-                elif operator == '\u2248':
+                elif operator == CC.UNICODE_NOT_EQUAL_TO:
+                    
+                    self._common_info[ 'not_ratio' ] = ( ratio_width, ratio_height )
+                    
+                elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                     
                     self._common_info[ 'min_ratio' ] = ( ratio_width * 0.85, ratio_height )
                     self._common_info[ 'max_ratio' ] = ( ratio_width * 1.15, ratio_height )
@@ -510,7 +521,8 @@ class FileSystemPredicates( object ):
                 if operator == '<': self._common_info[ 'max_size' ] = size
                 elif operator == '>': self._common_info[ 'min_size' ] = size
                 elif operator == '=': self._common_info[ 'size' ] = size
-                elif operator == '\u2248':
+                elif operator == CC.UNICODE_NOT_EQUAL_TO: self._common_info[ 'not_size' ] = size
+                elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                     
                     self._common_info[ 'min_size' ] = int( size * 0.85 )
                     self._common_info[ 'max_size' ] = int( size * 1.15 )
@@ -528,7 +540,7 @@ class FileSystemPredicates( object ):
                 
                 if operator == '<': self._common_info[ 'max_tag_as_number' ] = ( namespace, num )
                 elif operator == '>': self._common_info[ 'min_tag_as_number' ] = ( namespace, num )
-                elif operator == '\u2248':
+                elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                     
                     self._common_info[ 'min_tag_as_number' ] = ( namespace, int( num * 0.85 ) )
                     self._common_info[ 'max_tag_as_number' ] = ( namespace, int( num * 1.15 ) )
@@ -542,7 +554,8 @@ class FileSystemPredicates( object ):
                 if operator == '<': self._common_info[ 'max_width' ] = width
                 elif operator == '>': self._common_info[ 'min_width' ] = width
                 elif operator == '=': self._common_info[ 'width' ] = width
-                elif operator == '\u2248':
+                elif operator == '\u2260': self._common_info[ 'not_width' ] = width
+                elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                     
                     if width == 0: self._common_info[ 'width' ] = 0
                     else:
@@ -562,7 +575,8 @@ class FileSystemPredicates( object ):
                 if operator == '<': self._common_info[ 'max_num_pixels' ] = num_pixels
                 elif operator == '>': self._common_info[ 'min_num_pixels' ] = num_pixels
                 elif operator == '=': self._common_info[ 'num_pixels' ] = num_pixels
-                elif operator == '\u2248':
+                elif operator == CC.UNICODE_NOT_EQUAL_TO: self._common_info[ 'not_num_pixels' ] = num_pixels
+                elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                     
                     self._common_info[ 'min_num_pixels' ] = int( num_pixels * 0.85 )
                     self._common_info[ 'max_num_pixels' ] = int( num_pixels * 1.15 )
@@ -576,9 +590,13 @@ class FileSystemPredicates( object ):
                 if operator == '<': self._common_info[ 'max_height' ] = height
                 elif operator == '>': self._common_info[ 'min_height' ] = height
                 elif operator == '=': self._common_info[ 'height' ] = height
-                elif operator == '\u2248':
+                elif operator == '\u2260': self._common_info[ 'not_height' ] = height
+                elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                     
-                    if height == 0: self._common_info[ 'height' ] = 0
+                    if height == 0:
+                        
+                        self._common_info[ 'height' ] = 0
+                        
                     else:
                         
                         self._common_info[ 'min_height' ] = int( height * 0.85 )
@@ -624,7 +642,8 @@ class FileSystemPredicates( object ):
                 if operator == '<': self._common_info[ 'max_num_words' ] = num_words
                 elif operator == '>': self._common_info[ 'min_num_words' ] = num_words
                 elif operator == '=': self._common_info[ 'num_words' ] = num_words
-                elif operator == '\u2248':
+                elif operator == CC.UNICODE_NOT_EQUAL_TO: self._common_info[ 'not_num_words' ] = num_words
+                elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                     
                     if num_words == 0: self._common_info[ 'num_words' ] = 0
                     else:
@@ -768,6 +787,11 @@ class FileSystemPredicates( object ):
         return self._has_system_everything
         
     
+    def HasSystemLimit( self ):
+        
+        return self._limit is not None
+        
+    
     def MustBeArchive( self ): return self._archive
     
     def MustBeInbox( self ): return self._inbox
@@ -783,9 +807,14 @@ class FileSearchContext( HydrusSerialisable.SerialisableBase ):
     
     SERIALISABLE_TYPE = HydrusSerialisable.SERIALISABLE_TYPE_FILE_SEARCH_CONTEXT
     SERIALISABLE_NAME = 'File Search Context'
-    SERIALISABLE_VERSION = 4
+    SERIALISABLE_VERSION = 5
     
-    def __init__( self, file_service_key = CC.COMBINED_FILE_SERVICE_KEY, tag_search_context = None, search_type = SEARCH_TYPE_AND, predicates = None ):
+    def __init__( self, location_search_context = None, tag_search_context = None, search_type = SEARCH_TYPE_AND, predicates = None ):
+        
+        if location_search_context is None:
+            
+            location_search_context = LocationSearchContext()
+            
         
         if tag_search_context is None:
             
@@ -797,7 +826,7 @@ class FileSearchContext( HydrusSerialisable.SerialisableBase ):
             predicates = []
             
         
-        self._file_service_key = file_service_key
+        self._location_search_context = location_search_context
         self._tag_search_context = tag_search_context
         
         self._search_type = search_type
@@ -812,26 +841,17 @@ class FileSearchContext( HydrusSerialisable.SerialisableBase ):
     def _GetSerialisableInfo( self ):
         
         serialisable_predicates = [ predicate.GetSerialisableTuple() for predicate in self._predicates ]
+        serialisable_location_search_context = self._location_search_context.GetSerialisableTuple()
         
-        return ( self._file_service_key.hex(), self._tag_search_context.GetSerialisableTuple(), self._search_type, serialisable_predicates, self._search_complete )
+        return ( serialisable_location_search_context, self._tag_search_context.GetSerialisableTuple(), self._search_type, serialisable_predicates, self._search_complete )
         
     
     def _InitialiseFromSerialisableInfo( self, serialisable_info ):
         
-        ( file_service_key, serialisable_tag_search_context, self._search_type, serialisable_predicates, self._search_complete ) = serialisable_info
+        ( serialisable_location_search_context, serialisable_tag_search_context, self._search_type, serialisable_predicates, self._search_complete ) = serialisable_info
         
-        self._file_service_key = bytes.fromhex( file_service_key )
+        self._location_search_context = HydrusSerialisable.CreateFromSerialisableTuple( serialisable_location_search_context )
         self._tag_search_context = HydrusSerialisable.CreateFromSerialisableTuple( serialisable_tag_search_context )
-        
-        if HG.client_controller.IsBooted():
-            
-            services_manager = HG.client_controller.services_manager
-            
-            if not services_manager.ServiceExists( self._file_service_key ):
-                
-                self._file_service_key = CC.COMBINED_LOCAL_FILE_SERVICE_KEY
-                
-            
         
         self._predicates = [ HydrusSerialisable.CreateFromSerialisableTuple( pred_tuple ) for pred_tuple in serialisable_predicates ]
         
@@ -929,27 +949,56 @@ class FileSearchContext( HydrusSerialisable.SerialisableBase ):
             return ( 4, new_serialisable_info )
             
         
+        if version == 4:
+            
+            ( file_service_key_hex, serialisable_tag_search_context, search_type, serialisable_predicates, search_complete ) = old_serialisable_info
+            
+            file_service_key = bytes.fromhex( file_service_key_hex )
+            
+            location_search_context = LocationSearchContext( current_service_keys = [ file_service_key ] )
+            
+            serialisable_location_search_context = location_search_context.GetSerialisableTuple()
+            
+            new_serialisable_info = ( serialisable_location_search_context, serialisable_tag_search_context, search_type, serialisable_predicates, search_complete )
+            
+            return ( 5, new_serialisable_info )
+            
+        
     
     def FixMissingServices( self, services_manager ):
         
-        if not HG.client_controller.services_manager.ServiceExists( self._file_service_key ) or not HG.client_controller.services_manager.ServiceExists( self._tag_search_context.service_key ):
+        self._location_search_context.FixMissingServices( services_manager )
+        self._tag_search_context.FixMissingServices( services_manager )
+        
+    
+    def GetFileServiceKey( self ):
+        
+        if self._location_search_context.SearchesAnything():
             
-            self._file_service_key = CC.COMBINED_LOCAL_FILE_SERVICE_KEY
-            self._tag_search_context.service_key = CC.COMBINED_TAG_SERVICE_KEY
+            return self._location_search_context.GetFileServiceKey()
+            
+        else:
+            
+            return CC.COMBINED_FILE_SERVICE_KEY
             
         
     
-    def GetFileServiceKey( self ): return self._file_service_key
+    def GetLocationSearchContext( self ) -> "LocationSearchContext":
+        
+        return self._location_search_context
+        
+    
     def GetNamespacesToExclude( self ): return self._namespaces_to_exclude
     def GetNamespacesToInclude( self ): return self._namespaces_to_include
     def GetORPredicates( self ): return self._or_predicates
     def GetPredicates( self ): return self._predicates
+    
     def GetSystemPredicates( self ) -> FileSystemPredicates:
         
         return self._system_predicates
         
     
-    def GetTagSearchContext( self ):
+    def GetTagSearchContext( self ) -> "TagSearchContext":
         
         return self._tag_search_context
         
@@ -964,18 +1013,24 @@ class FileSearchContext( HydrusSerialisable.SerialisableBase ):
         return len( self._predicates ) == 0
         
     
-    def IsComplete( self ): return self._search_complete
+    def IsComplete( self ):
+        
+        return self._search_complete
+        
     
     def IsJustSystemEverything( self ):
         
         return len( self._predicates ) == 1 and self._system_predicates.HasSystemEverything()
         
     
-    def SetComplete( self ): self._search_complete = True
-    
-    def SetFileServiceKey( self, file_service_key ):
+    def SetComplete( self ):
         
-        self._file_service_key = file_service_key
+        self._search_complete = True
+        
+    
+    def SetLocationSearchContext( self, location_search_context: "LocationSearchContext" ):
+        
+        self._location_search_context = location_search_context
         
     
     def SetIncludeCurrentTags( self, value ):
@@ -1002,6 +1057,101 @@ class FileSearchContext( HydrusSerialisable.SerialisableBase ):
         
     
 HydrusSerialisable.SERIALISABLE_TYPES_TO_OBJECT_TYPES[ HydrusSerialisable.SERIALISABLE_TYPE_FILE_SEARCH_CONTEXT ] = FileSearchContext
+
+class LocationSearchContext( HydrusSerialisable.SerialisableBase ):
+    
+    SERIALISABLE_TYPE = HydrusSerialisable.SERIALISABLE_TYPE_LOCATION_SEARCH_CONTEXT
+    SERIALISABLE_NAME = 'Location Search Context'
+    SERIALISABLE_VERSION = 1
+    
+    def __init__( self, current_service_keys = None, deleted_service_keys = None ):
+        
+        if current_service_keys is None:
+            
+            current_service_keys = [ CC.COMBINED_LOCAL_FILE_SERVICE_KEY ]
+            
+        
+        if deleted_service_keys is None:
+            
+            deleted_service_keys = []
+            
+        
+        self.current_service_keys = current_service_keys
+        self.deleted_service_keys = deleted_service_keys
+        
+    
+    def _GetSerialisableInfo( self ):
+        
+        serialisable_current_service_keys = [ service_key.hex() for service_key in self.current_service_keys ]
+        serialisable_deleted_service_keys = [ service_key.hex() for service_key in self.deleted_service_keys ]
+        
+        return ( serialisable_current_service_keys, serialisable_deleted_service_keys )
+        
+    
+    def _InitialiseFromSerialisableInfo( self, serialisable_info ):
+        
+        ( serialisable_current_service_keys, serialisable_deleted_service_keys ) = serialisable_info
+        
+        self.current_service_keys = [ bytes.fromhex( service_key ) for service_key in serialisable_current_service_keys ]
+        self.deleted_service_keys = [ bytes.fromhex( service_key ) for service_key in serialisable_deleted_service_keys ]
+        
+    
+    def FixMissingServices( self, services_manager ):
+        
+        self.current_service_keys = services_manager.FilterValidServiceKeys( self.current_service_keys )
+        self.deleted_service_keys = services_manager.FilterValidServiceKeys( self.deleted_service_keys )
+        
+    
+    def GetFileServiceKey( self ):
+        
+        if not self.IsOneDomain():
+            
+            raise Exception( 'Location context was asked for specific file domain, but it did not have a single domain' )
+            
+        
+        if len( self.current_service_keys ) > 0:
+            
+            ( service_key, ) = self.current_service_keys
+            
+        else:
+            
+            ( service_key, ) = self.deleted_service_keys
+            
+        
+        return service_key
+        
+    
+    def IsAllKnownFiles( self ):
+        
+        return self.IsOneDomain() and CC.COMBINED_FILE_SERVICE_KEY in self.current_service_keys
+        
+    
+    def IsAllLocalFiles( self ):
+        
+        return self.IsOneDomain() and CC.COMBINED_LOCAL_FILE_SERVICE_KEY in self.current_service_keys
+        
+    
+    def IsOneDomain( self ):
+        
+        return len( self.current_service_keys ) + len( self.deleted_service_keys ) == 1
+        
+    
+    def SearchesAnything( self ):
+        
+        return len( self.current_service_keys ) + len( self.deleted_service_keys ) > 0
+        
+    
+    def SearchesCurrent( self ):
+        
+        return len( self.current_service_keys ) > 0
+        
+    
+    def SearchesDeleted( self ):
+        
+        return len( self.deleted_service_keys ) > 0
+        
+    
+HydrusSerialisable.SERIALISABLE_TYPES_TO_OBJECT_TYPES[ HydrusSerialisable.SERIALISABLE_TYPE_LOCATION_SEARCH_CONTEXT ] = LocationSearchContext
 
 class TagSearchContext( HydrusSerialisable.SerialisableBase ):
     
@@ -1051,6 +1201,19 @@ class TagSearchContext( HydrusSerialisable.SerialisableBase ):
             
             return ( 2, new_serialisable_info )
             
+        
+    
+    def FixMissingServices( self, services_manager ):
+        
+        if not services_manager.ServiceExists( self.service_key ):
+            
+            self.service_key = CC.COMBINED_TAG_SERVICE_KEY
+            
+        
+    
+    def IsAllKnownTags( self ):
+        
+        return self.service_key == CC.COMBINED_TAG_SERVICE_KEY
         
     
 HydrusSerialisable.SERIALISABLE_TYPES_TO_OBJECT_TYPES[ HydrusSerialisable.SERIALISABLE_TYPE_TAG_SEARCH_CONTEXT ] = TagSearchContext
@@ -2069,7 +2232,7 @@ class Predicate( HydrusSerialisable.SerialisableBase ):
                         
                         DAY = 86400
                         MONTH = DAY * 30
-                        YEAR = MONTH * 12
+                        YEAR = DAY * 365
                         
                         time_delta = 0
                         
@@ -2086,7 +2249,7 @@ class Predicate( HydrusSerialisable.SerialisableBase ):
                             
                             pretty_operator = 'before '
                             
-                        elif operator == '\u2248':
+                        elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                             
                             pretty_operator = 'around '
                             
@@ -2114,7 +2277,7 @@ class Predicate( HydrusSerialisable.SerialisableBase ):
                             
                             pretty_operator = 'on the day of '
                             
-                        elif operator == '\u2248':
+                        elif operator == CC.UNICODE_ALMOST_EQUAL_TO:
                             
                             pretty_operator = 'a month either side of '
                             
@@ -2126,7 +2289,7 @@ class Predicate( HydrusSerialisable.SerialisableBase ):
                 
             elif self._predicate_type == PREDICATE_TYPE_SYSTEM_NUM_PIXELS:
                 
-                base = 'num_pixels'
+                base = 'number of pixels'
                 
                 if self._value is not None:
                     
@@ -2311,7 +2474,7 @@ class Predicate( HydrusSerialisable.SerialisableBase ):
                         n_text = namespace
                         
                     
-                    if operator == '\u2248':
+                    if operator == CC.UNICODE_ALMOST_EQUAL_TO:
                         
                         o_text = ' about '
                         
@@ -2335,7 +2498,7 @@ class Predicate( HydrusSerialisable.SerialisableBase ):
                     
                     ( operator, num_relationships, dupe_type ) = self._value
                     
-                    if operator == '\u2248':
+                    if operator == CC.UNICODE_ALMOST_EQUAL_TO:
                         
                         o_text = ' about '
                         
@@ -2388,19 +2551,19 @@ class Predicate( HydrusSerialisable.SerialisableBase ):
                     
                     if include_media and include_previews:
                         
-                        domain = 'all '
+                        domain = 'all'
                         
                     elif include_media:
                         
-                        domain = 'media '
+                        domain = 'media'
                         
                     elif include_previews:
                         
-                        domain = 'preview '
+                        domain = 'preview'
                         
                     else:
                         
-                        domain = 'unknown '
+                        domain = 'unknown'
                         
                     
                     if view_type == 'views':
@@ -2412,7 +2575,7 @@ class Predicate( HydrusSerialisable.SerialisableBase ):
                         value_string = HydrusData.TimeDeltaToPrettyTimeDelta( viewing_value )
                         
                     
-                    base = domain + view_type + operator + value_string
+                    base = '{} {} {} {}'.format( domain, view_type, operator, value_string )
                     
                 
             

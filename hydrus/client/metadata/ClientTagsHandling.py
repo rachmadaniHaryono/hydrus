@@ -12,7 +12,6 @@ from hydrus.core import HydrusSerialisable
 from hydrus.core import HydrusTags
 
 from hydrus.client import ClientConstants as CC
-from hydrus.client import ClientServices
 from hydrus.client.metadata import ClientTags
 
 class TagAutocompleteOptions( HydrusSerialisable.SerialisableBase ):
@@ -405,7 +404,10 @@ class TagDisplayMaintenanceManager( object ):
                 
                 status = self._controller.Read( 'tag_display_maintenance_status', service_key )
                 
-                self._service_keys_to_needs_work[ service_key ] = status[ 'num_siblings_to_sync' ] + status[ 'num_parents_to_sync' ] > 0
+                work_to_do = status[ 'num_siblings_to_sync' ] + status[ 'num_parents_to_sync' ] > 0
+                sync_halted = len( status[ 'waiting_on_tag_repos' ] ) > 0
+                
+                self._service_keys_to_needs_work[ service_key ] = work_to_do and not sync_halted
                 
             
             if self._service_keys_to_needs_work[ service_key ]:

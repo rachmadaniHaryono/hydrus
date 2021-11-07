@@ -11,10 +11,12 @@ from hydrus.client import ClientConstants as CC
 from hydrus.client.gui import ClientGUICore as CGC
 from hydrus.client.gui import ClientGUIFunctions
 from hydrus.client.gui import ClientGUIMenus
+from hydrus.client.gui import ClientGUITags
 from hydrus.client.gui import QtPorting as QP
 from hydrus.client.gui.widgets import ClientGUICommon
 from hydrus.client.gui.widgets import ClientGUIMenuButton
 from hydrus.client.media import ClientMedia
+from hydrus.client.metadata import ClientTags
 
 class MediaCollectControl( QW.QWidget ):
     
@@ -169,11 +171,16 @@ class MediaSortControl( QW.QWidget ):
         self._sort_type = ( 'system', CC.SORT_FILES_BY_FILESIZE )
         
         self._sort_type_button = ClientGUICommon.BetterButton( self, 'sort', self._SortTypeButtonClick )
+        self._sort_tag_display_type_button = ClientGUIMenuButton.MenuChoiceButton( self, [] )
         self._sort_order_choice = ClientGUIMenuButton.MenuChoiceButton( self, [] )
         
         type_width = ClientGUIFunctions.ConvertTextToPixelWidth( self._sort_type_button, 14 )
         
         self._sort_type_button.setMinimumWidth( type_width )
+        
+        tdt_width = ClientGUIFunctions.ConvertTextToPixelWidth( self._sort_tag_display_type_button, 8 )
+        
+        self._sort_tag_display_type_button.setMinimumWidth( tdt_width )
         
         asc_width = ClientGUIFunctions.ConvertTextToPixelWidth( self._sort_order_choice, 14 )
         
@@ -187,6 +194,7 @@ class MediaSortControl( QW.QWidget ):
         hbox = QP.HBoxLayout( margin = 0 )
         
         QP.AddToLayout( hbox, self._sort_type_button, CC.FLAGS_EXPAND_BOTH_WAYS )
+        QP.AddToLayout( hbox, self._sort_tag_display_type_button, CC.FLAGS_CENTER_PERPENDICULAR )
         QP.AddToLayout( hbox, self._sort_order_choice, CC.FLAGS_CENTER_PERPENDICULAR )
         
         self.setLayout( hbox )
@@ -210,6 +218,7 @@ class MediaSortControl( QW.QWidget ):
                 
             
         
+        self._sort_tag_display_type_button.valueChanged.connect( self.EventTagDisplayTypeChoice )
         self._sort_order_choice.valueChanged.connect( self.EventSortAscChoice )
         
     
@@ -283,34 +292,36 @@ class MediaSortControl( QW.QWidget ):
                 
             
         
-        namespace_sort_types = HC.options[ 'sort_by' ]
+        default_namespace_sorts = HG.client_controller.new_options.GetDefaultNamespaceSorts()
         
-        if len( namespace_sort_types ) > 0:
+        if menu is not None:
+            
+            submenu = QW.QMenu( menu )
+            
+            ClientGUIMenus.AppendMenu( menu, submenu, 'namespaces' )
+            
+        
+        for namespace_sort in default_namespace_sorts:
+            
+            sort_type = namespace_sort.sort_type
+            
+            sort_types.append( sort_type )
             
             if menu is not None:
                 
-                submenu = QW.QMenu( menu )
+                example_sort = ClientMedia.MediaSort( sort_type, CC.SORT_ASC )
                 
-                ClientGUIMenus.AppendMenu( menu, submenu, 'namespaces' )
+                label = example_sort.GetSortTypeString()
+                
+                menu_item = ClientGUIMenus.AppendMenuItem( submenu, label, 'Select this sort type.', self._SetSortType, sort_type )
+                
+                menu_items_and_sort_types.append( ( menu_item, sort_type ) )
                 
             
-            for ( namespaces_text, namespaces_list ) in namespace_sort_types:
-                
-                sort_type = ( namespaces_text, tuple( namespaces_list ) )
-                
-                sort_types.append( sort_type )
-                
-                if menu is not None:
-                    
-                    example_sort = ClientMedia.MediaSort( sort_type, CC.SORT_ASC )
-                    
-                    label = example_sort.GetSortTypeString()
-                    
-                    menu_item = ClientGUIMenus.AppendMenuItem( submenu, label, 'Select this sort type.', self._SetSortType, sort_type )
-                    
-                    menu_items_and_sort_types.append( ( menu_item, sort_type ) )
-                    
-                
+        
+        if menu is not None:
+            
+            ClientGUIMenus.AppendMenuItem( submenu, 'custom', 'Set a custom namespace sort', self._SetCustomNamespaceSort )
             
         
         rating_service_keys = HG.client_controller.services_manager.GetServiceKeys( ( HC.LOCAL_RATING_LIKE, HC.LOCAL_RATING_NUMERICAL ) )
@@ -358,6 +369,51 @@ class MediaSortControl( QW.QWidget ):
         return sort_types
         
     
+    def _SetCustomNamespaceSort( self ):
+        
+        if self._sort_type[0] == 'namespaces':
+            
+            sort_data = self._sort_type[1]
+            
+        else:
+            
+            sort_data = ( [ 'series' ], ClientTags.TAG_DISPLAY_ACTUAL )
+            
+        
+        try:
+            
+            sort_data = ClientGUITags.EditNamespaceSort( self, sort_data )
+            
+            sort_type = ( 'namespaces', sort_data )
+            
+            self._SetSortType( sort_type )
+            
+        except HydrusExceptions.VetoException:
+            
+            return
+            
+        
+    
+    def EventTagDisplayTypeChoice( self ):
+        
+        tag_display_type = self._sort_tag_display_type_button.GetValue()
+        
+        ( sort_metatype, sort_data ) = self._sort_type
+        
+        if sort_metatype == 'namespaces':
+            
+            ( namespaces, current_tag_display_type ) = sort_data
+            
+            sort_data = ( namespaces, tag_display_type )
+            
+            self._sort_type = ( sort_metatype, sort_data )
+            
+            self._UserChoseASort()
+            
+            self._BroadcastSort()
+            
+        
+    
     def _SortTypeButtonClick( self ):
         
         menu = QW.QMenu()
@@ -382,6 +438,8 @@ class MediaSortControl( QW.QWidget ):
     def _UpdateAscLabels( self, set_default_asc = False ):
         
         media_sort = self._GetCurrentSort()
+        
+        self._sort_order_choice.blockSignals( True )
         
         if media_sort.CanAsc():
             
@@ -410,12 +468,44 @@ class MediaSortControl( QW.QWidget ):
             self._sort_order_choice.SetChoiceTuples( [] )
             
         
+        self._sort_order_choice.blockSignals( False )
+        
     
     def _UpdateSortTypeLabel( self ):
         
         example_sort = ClientMedia.MediaSort( self._sort_type, CC.SORT_ASC )
         
         self._sort_type_button.setText( example_sort.GetSortTypeString() )
+        
+        ( sort_metatype, sort_data ) = self._sort_type
+        
+        show_tdt = sort_metatype == 'namespaces' and HG.client_controller.new_options.GetBoolean( 'advanced_mode' )
+        
+        if show_tdt:
+            
+            if sort_metatype == 'namespaces':
+                
+                ( namespaces, current_tag_display_type ) = sort_data
+                
+                tag_display_types = [
+                    ClientTags.TAG_DISPLAY_ACTUAL,
+                    ClientTags.TAG_DISPLAY_SELECTION_LIST,
+                    ClientTags.TAG_DISPLAY_SINGLE_MEDIA
+                ]
+                
+                choice_tuples = [ ( ClientTags.tag_display_str_lookup[ tag_display_type ], tag_display_type ) for tag_display_type in tag_display_types ]
+                
+                self._sort_tag_display_type_button.blockSignals( True )
+                
+                self._sort_tag_display_type_button.SetChoiceTuples( choice_tuples )
+                
+                self._sort_tag_display_type_button.SetValue( current_tag_display_type )
+                
+                self._sort_tag_display_type_button.blockSignals( False )
+                
+            
+        
+        self._sort_tag_display_type_button.setVisible( show_tdt )
         
     
     def _UserChoseASort( self ):

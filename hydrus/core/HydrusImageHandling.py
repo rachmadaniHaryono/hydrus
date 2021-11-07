@@ -27,6 +27,7 @@ from hydrus.core import HydrusData
 from hydrus.core import HydrusExceptions
 from hydrus.core import HydrusGlobals as HG
 from hydrus.core import HydrusPaths
+from hydrus.core import HydrusTemp
 
 def EnableLoadTruncatedImages():
     
@@ -112,7 +113,7 @@ def ConvertToPNGIfBMP( path ):
     
     if header == b'BM':
         
-        ( os_file_handle, temp_path ) = HydrusPaths.GetTempPath()
+        ( os_file_handle, temp_path ) = HydrusTemp.GetTempPath()
         
         try:
             
@@ -130,7 +131,7 @@ def ConvertToPNGIfBMP( path ):
             
         finally:
             
-            HydrusPaths.CleanUpTempPath( os_file_handle, temp_path )
+            HydrusTemp.CleanUpTempPath( os_file_handle, temp_path )
             
         
     
@@ -239,9 +240,12 @@ def GenerateNumPyImage( path, mime, force_pil = False ):
     
     return numpy_image
     
-def GenerateNumPyImageFromPILImage( pil_image ):
+def GenerateNumPyImageFromPILImage( pil_image, dequantize = True ):
     
-    pil_image = Dequantize( pil_image )
+    if dequantize:
+        
+        pil_image = Dequantize( pil_image )
+        
     
     ( w, h ) = pil_image.size
     

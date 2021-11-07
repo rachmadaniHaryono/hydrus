@@ -1,3 +1,4 @@
+import fractions
 import itertools
 import typing
 
@@ -211,7 +212,7 @@ class Animation( QW.QWidget ):
         return ( self._current_frame_index, self._current_timestamp_ms, self._paused, buffer_indices )
         
     
-    def GotoFrame( self, frame_index ):
+    def GotoFrame( self, frame_index, pause_afterwards = True ):
         
         if self._video_container is not None and self._video_container.IsInitialised():
             
@@ -227,7 +228,30 @@ class Animation( QW.QWidget ):
                 self._current_frame_drawn = False
                 
             
-            self._paused = True
+            if pause_afterwards:
+                
+                self._paused = True
+                
+            
+        
+    
+    def GotoTimestamp( self, timestamp_ms, round_direction, pause_afterwards = True ):
+        
+        if self._video_container is not None and self._video_container.IsInitialised():
+            
+            frame_index = self._video_container.GetFrameIndex( timestamp_ms )
+            
+            if frame_index == self._current_frame_index:
+                
+                frame_index += round_direction
+                
+            
+            if frame_index > self._media.GetNumFrames() - 1:
+                
+                frame_index = 0
+                
+            
+            self.GotoFrame( frame_index, pause_afterwards = pause_afterwards )
             
         
     
@@ -279,11 +303,9 @@ class Animation( QW.QWidget ):
         
         command_processed = True
         
-        data = command.GetData()
-        
         if command.IsSimpleCommand():
             
-            action = data
+            action = command.GetSimpleAction()
             
             if action == CAC.SIMPLE_PAUSE_MEDIA:
                 
@@ -292,6 +314,12 @@ class Animation( QW.QWidget ):
             elif action == CAC.SIMPLE_PAUSE_PLAY_MEDIA:
                 
                 self.PausePlay()
+                
+            elif action == CAC.SIMPLE_MEDIA_SEEK_DELTA:
+                
+                ( direction, duration_ms ) = command.GetSimpleData()
+                
+                self.SeekDelta( direction, duration_ms )
                 
             elif action == CAC.SIMPLE_OPEN_FILE_IN_EXTERNAL_PROGRAM:
                 
@@ -376,6 +404,16 @@ class Animation( QW.QWidget ):
                         
                     
                 
+            
+        
+    
+    def SeekDelta( self, direction, duration_ms ):
+        
+        if self._video_container is not None and self._video_container.IsInitialised():
+            
+            new_ts = self._current_timestamp_ms + ( direction * duration_ms )
+            
+            self.GotoTimestamp( new_ts, direction, pause_afterwards = False )
             
         
     
@@ -1335,6 +1373,17 @@ class MediaContainer( QW.QWidget ):
             
         
     
+    def SeekDelta( self, direction, duration_ms ):
+        
+        if self._media is not None:
+            
+            if isinstance( self._media_window, ( Animation, ClientGUIMPV.mpvWidget ) ):
+                
+                self._media_window.SeekDelta( direction, duration_ms )
+                
+            
+        
+    
     def SetEmbedButton( self ):
         
         self._HideAnimationBar()
@@ -1614,8 +1663,6 @@ class StaticImage( QW.QWidget ):
         
         self._is_rendered = False
         
-        self._first_background_drawn = False
-        
         self._canvas_tile_size = QC.QSize( 768, 768 )
         
         self._zoom = 1.0
@@ -1634,27 +1681,48 @@ class StaticImage( QW.QWidget ):
     
     def _ClearCanvasTileCache( self ):
         
-        if self._media is None:
+        if self._media is None or self.width() == 0 or self.height() == 0:
             
             self._zoom = 1.0
-            
-        else:
-            
-            self._zoom = self.width() / self._media.GetResolution()[ 0 ]
-            
-        
-        # it is most convenient to have tiles that line up with the current zoom ratio
-        # 768 is a convenient size for meaty GPU blitting, but as a number it doesn't make for nice multiplication
-        
-        # a 'nice' size is one that divides nicely by our zoom, so that integer translations between canvas and native res aren't losing too much in the float remainder
-        
-        if self.width() == 0 or self.height() == 0:
-            
             tile_dimension = 0
             
         else:
             
-            tile_dimension = round( ( 768 // self._zoom ) * self._zoom )
+            ( media_width, media_height ) = self._media.GetResolution()
+            
+            self._zoom = self.width() / media_width
+            
+            # it is most convenient to have tiles that line up with the current zoom ratio
+            # 768 is a convenient size for meaty GPU blitting, but as a number it doesn't make for nice multiplication
+            
+            # a 'nice' size is one that divides nicely by our zoom, so that integer translations between canvas and native res aren't losing too much in the float remainder
+            
+            # the trick of going ( 123456 // 16 ) * 16 to give you a nice multiple of 16 does not work with floats like 1.4 lmao.
+            # what we can do instead is phrase 1.4 as 7/5 and use 7 as our int. any number cleanly divisible by 7 is cleanly divisible by 1.4
+            
+            ideal_tile_dimension = HG.client_controller.new_options.GetInteger( 'ideal_tile_dimension' )
+            
+            nice_number = HydrusData.GetNicelyDivisibleNumberForZoom( self._zoom, ideal_tile_dimension )
+            
+            if nice_number == -1:
+                
+                # we are in extreme zoom land. nice multiples are impossible with reasonable size tiles, so we'll have to settle for some problems
+                # a future solution is to get a bigger zoom and scale down
+                # a future solution is to just make overlapping screen covering tiles and never deal with seams lmao
+                
+                tile_dimension = ideal_tile_dimension
+                
+            else:
+                
+                tile_dimension = ( ideal_tile_dimension // nice_number ) * nice_number
+                
+            
+            tile_dimension = max( min( tile_dimension, 2048 ), 1 )
+            
+            if HG.canvas_tile_outline_mode:
+                
+                HydrusData.ShowText( '{} from zoom {} and nice number {}'.format( tile_dimension, self._zoom, nice_number ) )
+                
             
         
         self._canvas_tile_size = QC.QSize( tile_dimension, tile_dimension )
@@ -1662,8 +1730,6 @@ class StaticImage( QW.QWidget ):
         self._canvas_tiles = {}
         
         self._is_rendered = False
-        
-        self._first_background_drawn = False
         
     
     def _DrawBackground( self, painter ):
@@ -1673,8 +1739,6 @@ class StaticImage( QW.QWidget ):
         painter.setBackground( QG.QBrush( new_options.GetColour( CC.COLOUR_MEDIA_BACKGROUND ) ) )
         
         painter.eraseRect( painter.viewport() )
-        
-        self._first_background_drawn = True
         
     
     def _DrawTile( self, tile_coordinate ):
@@ -1693,6 +1757,14 @@ class StaticImage( QW.QWidget ):
         tile = self._tile_cache.GetTile( self._image_renderer, self._media, native_clip_rect, canvas_clip_rect.size() )
         
         painter.drawPixmap( 0, 0, tile.qt_pixmap )
+        
+        if HG.canvas_tile_outline_mode:
+            
+            painter.setPen( QG.QPen( QG.QColor( 0, 127, 255 ) ) )
+            painter.setBrush( QC.Qt.NoBrush )
+            
+            painter.drawRect( tile_pixmap.rect() )
+            
         
         self._canvas_tiles[ tile_coordinate ] = ( tile_pixmap, canvas_clip_rect.topLeft() )
         
@@ -1741,13 +1813,26 @@ class StaticImage( QW.QWidget ):
         
         native_clip_rect = QC.QRect( canvas_topLeft / self._zoom, canvas_size / self._zoom )
         
+        # dealing with rounding errors with zoom calc
+        if native_clip_rect.width() + native_clip_rect.x() > media_width:
+            
+            native_clip_rect.setWidth( media_width - native_clip_rect.x() )
+            
+        
+        if native_clip_rect.height() + native_clip_rect.y() > media_height:
+            
+            native_clip_rect.setHeight( media_height - native_clip_rect.y() )
+            
+        
         if native_clip_rect.width() == 0:
             
+            native_clip_rect.setX( max( native_clip_rect.x() - 1, 0 ) )
             native_clip_rect.setWidth( 1 )
             
         
         if native_clip_rect.height() == 0:
             
+            native_clip_rect.setY( max( native_clip_rect.y() - 1, 0 ) )
             native_clip_rect.setHeight( 1 )
             
         
@@ -1764,7 +1849,7 @@ class StaticImage( QW.QWidget ):
     
     def _GetTileCoordinatesInView( self, rect: QC.QRect ):
         
-        if self.width() == 0 or self.height() == 0:
+        if self.width() == 0 or self.height() == 0 or self._canvas_tile_size.width() == 0 or self._canvas_tile_size.height() == 0:
             
             return []
             
@@ -1801,37 +1886,46 @@ class StaticImage( QW.QWidget ):
             return
             
         
-        dirty_tile_coordinates = self._GetTileCoordinatesInView( event.rect() )
-        
-        for dirty_tile_coordinate in dirty_tile_coordinates:
+        try:
             
-            if dirty_tile_coordinate not in self._canvas_tiles:
+            dirty_tile_coordinates = self._GetTileCoordinatesInView( event.rect() )
+            
+            for dirty_tile_coordinate in dirty_tile_coordinates:
                 
-                self._DrawTile( dirty_tile_coordinate )
+                if dirty_tile_coordinate not in self._canvas_tiles:
+                    
+                    self._DrawTile( dirty_tile_coordinate )
+                    
                 
             
-        
-        for dirty_tile_coordinate in dirty_tile_coordinates:
+            for dirty_tile_coordinate in dirty_tile_coordinates:
+                
+                ( tile, pos ) = self._canvas_tiles[ dirty_tile_coordinate ]
+                
+                painter.drawPixmap( pos, tile )
+                
             
-            ( tile, pos ) = self._canvas_tiles[ dirty_tile_coordinate ]
+            all_visible_tile_coordinates = self._GetTileCoordinatesInView( self.visibleRegion().boundingRect() )
             
-            painter.drawPixmap( pos, tile )
+            deletee_tile_coordinates = set( self._canvas_tiles.keys() ).difference( all_visible_tile_coordinates )
             
-        
-        all_visible_tile_coordinates = self._GetTileCoordinatesInView( self.visibleRegion().boundingRect() )
-        
-        deletee_tile_coordinates = set( self._canvas_tiles.keys() ).difference( all_visible_tile_coordinates )
-        
-        for deletee_tile_coordinate in deletee_tile_coordinates:
+            for deletee_tile_coordinate in deletee_tile_coordinates:
+                
+                del self._canvas_tiles[ deletee_tile_coordinate ]
+                
             
-            del self._canvas_tiles[ deletee_tile_coordinate ]
+            if not self._is_rendered:
+                
+                self.readyForNeighbourPrefetch.emit()
+                
+                self._is_rendered = True
+                
             
-        
-        if not self._is_rendered:
+        except Exception as e:
             
-            self.readyForNeighbourPrefetch.emit()
+            HydrusData.PrintException( e, do_wait = False )
             
-            self._is_rendered = True
+            return
             
         
     
@@ -1854,11 +1948,9 @@ class StaticImage( QW.QWidget ):
         
         command_processed = True
         
-        data = command.GetData()
-        
         if command.IsSimpleCommand():
             
-            action = data
+            action = command.GetSimpleAction()
             
             if action == CAC.SIMPLE_OPEN_FILE_IN_EXTERNAL_PROGRAM:
                 

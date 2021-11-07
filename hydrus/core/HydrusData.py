@@ -1,5 +1,7 @@
 import collections
 import cProfile
+import decimal
+import fractions
 import io
 import itertools
 import os
@@ -42,6 +44,17 @@ def BuildKeyToSetDict( pairs ):
     for ( key, value ) in pairs: d[ key ].add( value )
     
     return d
+    
+def BytesToNoneOrHex( b: typing.Optional[ bytes ] ):
+    
+    if b is None:
+        
+        return None
+        
+    else:
+        
+        return b.hex()
+        
     
 def CalculateScoreFromRating( count, rating ):
     
@@ -233,9 +246,14 @@ def ConvertPrettyStringsToUglyNamespaces( pretty_strings ):
     
 def ConvertResolutionToPrettyString( resolution ):
     
+    if resolution in HC.NICE_RESOLUTIONS:
+        
+        return HC.NICE_RESOLUTIONS[ resolution ]
+        
+    
     ( width, height ) = resolution
     
-    return ToHumanInt( width ) + 'x' + ToHumanInt( height )
+    return '{}x{}'.format( ToHumanInt( width ), ToHumanInt( height ) )
     
 def ConvertStatusToPrefix( status ):
     
@@ -269,7 +287,7 @@ def TimeDeltaToPrettyTimeDelta( seconds, show_seconds = True ):
         HOUR = 60 * MINUTE
         DAY = 24 * HOUR
         MONTH = 30 * DAY
-        YEAR = 12 * MONTH
+        YEAR = 365 * DAY
         
         lines = []
         
@@ -418,7 +436,7 @@ def ConvertTimestampToPrettyTime( timestamp, in_utc = False, include_24h_time = 
         return 'unparseable time {}'.format( timestamp )
         
     
-def TimestampToPrettyTimeDelta( timestamp, just_now_string = 'now', just_now_threshold = 3, show_seconds = True, no_prefix = False ):
+def BaseTimestampToPrettyTimeDelta( timestamp, just_now_string = 'now', just_now_threshold = 3, history_suffix = ' ago', show_seconds = True, no_prefix = False ):
     
     if timestamp is None:
         
@@ -443,7 +461,7 @@ def TimestampToPrettyTimeDelta( timestamp, just_now_string = 'now', just_now_thr
         
         if TimeHasPassed( timestamp ):
             
-            return time_delta_string + ' ago'
+            return '{}{}'.format( time_delta_string, history_suffix )
             
         else:
             
@@ -462,6 +480,8 @@ def TimestampToPrettyTimeDelta( timestamp, just_now_string = 'now', just_now_thr
         return 'unparseable time {}'.format( timestamp )
         
     
+TimestampToPrettyTimeDelta = BaseTimestampToPrettyTimeDelta
+
 def ConvertUglyNamespaceToPrettyString( namespace ):
     
     if namespace is None or namespace == '':
@@ -610,6 +630,41 @@ def Get64BitHammingDistance( phash1, phash2 ):
     # you technically are going n & 0xFFFFFFFF00000000 at the end, but that's a no-op with the >> 32 afterwards, so can be omitted
     
     return n
+    
+def GetNicelyDivisibleNumberForZoom( zoom, no_bigger_than ):
+    
+    # it is most convenient to have tiles that line up with the current zoom ratio
+    # 768 is a convenient size for meaty GPU blitting, but as a number it doesn't make for nice multiplication
+    
+    # a 'nice' size is one that divides nicely by our zoom, so that integer translations between canvas and native res aren't losing too much in the float remainder
+    
+    # the trick of going ( 123456 // 16 ) * 16 to give you a nice multiple of 16 does not work with floats like 1.4 lmao.
+    # what we can do instead is phrase 1.4 as 7/5 and use 7 as our int. any number cleanly divisible by 7 is cleanly divisible by 1.4
+    
+    base_frac = fractions.Fraction( zoom )
+    
+    denominator_limit = 10000
+    
+    frac = base_frac
+    
+    while frac.numerator > no_bigger_than:
+        
+        frac = base_frac.limit_denominator( denominator_limit )
+        
+        denominator_limit //= 2
+        
+        if denominator_limit < 10:
+            
+            return -1
+            
+        
+    
+    if frac.numerator == 0:
+        
+        return -1
+        
+    
+    return frac.numerator
     
 def GetEmptyDataDict():
     
@@ -1197,21 +1252,32 @@ def Profile( summary, code, g, l, min_duration_ms = 20, show_summary = False ):
         
         output.seek( 0 )
         
-        details = output.read()
+        profile_text = output.read()
+        
+        with HG.profile_counter_lock:
+            
+            HG.profile_slow_count += 1
+            
         
         if show_summary:
             
             ShowText( summary )
             
         
+        HG.controller.PrintProfile( summary, profile_text = profile_text )
+        
     else:
         
-        summary += ' - It took ' + TimeDeltaToPrettyTimeDelta( time_took ) + '.'
+        with HG.profile_counter_lock:
+            
+            HG.profile_fast_count += 1
+            
         
-        details = ''
+        if show_summary:
+            
+            HG.controller.PrintProfile( summary )
+            
         
-    
-    HG.controller.PrintProfile( summary, details )
     
 def PullNFromIterator( iterator, n ):
     
@@ -1490,12 +1556,61 @@ def TimeUntil( timestamp ):
     
     return timestamp - GetNow()
     
-def ToHumanBytes( size ):
+def BaseToHumanBytes( size, sig_figs = 3 ):
+    
+    #
+    #               ░█▓▓▓▓▓▒  ░▒░   ▒   ▒ ░  ░ ░▒ ░░     ░▒  ░  ░▒░ ▒░▒▒▒░▓▓▒▒▓  
+    #            ▒▓▒▒▓▒  ░      ░   ▒                ░░       ░░  ░▒▒▒▓▒▒▓▓      
+    #             ▓█▓▒░ ▒▒░    ▒░  ▒▓░ ░  ░░░ ░   ░░░▒▒ ░     ░░░  ▒▓▓▓▒▓▓▒      
+    #              ▒▒░▒▒░░     ▒░░▒▓░▒░▒░░░░░░░░ ░▒▒▒▓   ░     ░▒▒░ ▒▓▒▓█▒       
+    #                ░█▓  ░░░ ▒▒░▒▒   ▒▒▒░░░░▒▒░░▒▒▒░░▒▒ ▒░     ░░░░░░▒█▒        
+    #               ░░▒▒ ▒░░▒░▒▒▒░     ░░░▒▒▒░░▒░ ░    ▓▒▒░    ░  ▒█▓░▒░         
+    #             ░░░ ░▒ ▓▒░▒░▒           ░▒▒▒▒         ▒▓░ ░  ▒  ▒█▓            
+    #           ░░░    ▓░▒▒░░▒   ▒▒▒▒░░    ░░░            ░░░  ▒ ░▒░ ░           
+    #         ░▒░      ▓░▒▒░░▒░▒▓▓████▓         ░▒▒▒▒▒   ░▒░░ ▓▒ ▒▒  ░▒░         
+    #       ░░░░ ░░    ░░▒░▒░░░    ░░░     ░    ░▒▒▒▒▓█▓ ▒░░░▒▓░▒▒░   ░░░░       
+    #       ▒ ░  ░░░░░░ ░▓░▓▒░░░  ░       ░░           ░▒▒░▒▒▒▒░▓░     ░ ░▒░     
+    #       ▒░░  ░░░░░░ ▒▒░▒░▒▒░░░░░░            ░░░░░░▒▒░▓▒░▒▒▓░      ░   ░░    
+    #   ░░░░▒▒▒░░░  ░░  ▓░▒░░▒▒░                  ░░░░░░ ░▒▒▒▒▓▓  ░  ░ ░░   ▒░░  
+    #   ▒▒░   ▒▒░  ░░  ▒▒▒▓░░▒ ░        ░░░░░░░          ░░▒░░▒▓  ░░░░ ░░  ░▒░░▒ 
+    # ▒░░   ░ ▒▒  ░░  ▒▓▒▓▒ ▒░░▒▓                      ▓▒░▒▒░░░▓▒  ░░  ░░ ▒▒░  ░░
+    # ░  ░▒▒░░▒▒░░  ░▒▒▒▒▒  ▒░░▒▓▒░                  ░▒▓█▒░▒ ░░▒▓▒     ▒▒▒ ▒░▒░  
+    # ▒░▒▓▓░░░░░▒▒▒▒░░░▓▒   ▒░ ▒▓░░▒▒░            ░░▒▒░▒▓░ ▒░ ▒░▒▒▒ ░░░░▓   ▒░▒░ 
+    # ▒ ▒▒ ▒░░░▒░░    ▒▒    ░░░▒▒░░░░▒▒▒░     ░░▒▒░▒▒░░▒▓▒░▒  ░ ▒░▒▒░░░░░▒░░▒▒▒▒ 
+    # ░ ▒▒▒░        ░░▒      ▒░░▒░░░░░▒▒▒▒▒▒▒▒▒▒▓▒░░▒░▒▒░▒▒░   ░ ▒░░░▒░░░░░░░▒▒▒░
+    # ▒  ▒▓        ░▒▒      ░▒░▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░▒▒▒▒▒░░▒░      ▒░   ░▒▒░▒░ ▒  
+    # ▒   ▒▒░     ░▒░   ░  ▒░░▒▒░  ░▒▒▒▒ ░▒▒▒░  ▒░▒▒   ▒▒ ▒▒       ▒        ▓░░▒░
+    # ░░  ░▒    ░▒▒░   ░ ░▒░░░░   ░░       ░   ▒▒▓▓█▒   ░░▒▓▒░      ▒░     ░▒▒░░░
+    # ▒░  ░░▒ ▒▒▒     ░░▒▒░░░   ░ ▒░  ░░▒▒▒▒▒░██▓▒▓██     ▒▓▒▒░  ░   ▒▒   ▒▓▒  ░░
+    # ░░▒▒▒▒▒▒░      ░░░   ░    ▒▒░▒  ░▒▒░▓█░ ██▓▓▓▓  ▒   ░▓ ░░▒░     ░▒░ ▒░░░░▒ 
+    #   ▒▒░       ░▒▒           ▒▓▒ ▓▓▓▓█▒▓▓▓▒▒▓▓▓▓ ▒▓▒   ▒▒    ░░░     ░▒▒░░░▒░ 
+    #      ░   ░░▒▒▓▒▒          ░░▓▓▓███▒▒█▓██▒░░ ▒▒▒▒░   ▒▓     ░▒▒░ ░   ░▒▒▒░  
+    # ░  ░░ ░▒▒▒▒▒▓▓▒▒░         ▒▒▒█▓▓▓░ ▓▓▒▓▓▒░░░▒▓▒░░   ▒▒     ░▒█▓░ ░░   ░░░  
+    #   ▒░░▒▓▒░▒░ ▒▒ ▒▒░  ░░░░▒▓▓▓▒▓▓▓▓ ▒▓▒▒▓▓░▒▒▒▒▒▒▒▓▒  ▒▒    ░▒▒▒▓▓▒░░▒   ░▒▒▒
+    # ▒▒▒░ ▒░ ░░   ▒ ░▓▓▒▒░░░░░░░                       ▓░▒░  ░▓▓▓░  ░▒▓░▒▓▒▓▒▓▓▓
+    # ▓░  ▒░  ▒▓   ▓░               ░░░░░░░░░░░▒▒▒▒▒▒▓▓▒ ▒▒▓▓▓▓▓▓▓▓▓░ ▒▓▒▓▓▓▒▓▓▓▓
+    #     ░░  ▓▒   ░▒▓▓▒▒▒▓▓▓▒▓▓▓▓▓▓█▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ▓▒▒▒▒▒▓▓▓▓▒▓▓▒▒▒▒▒▓▓▓▓▒ 
+    #    ░░░ ▒▒▒▒▓▓░▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░▓▒▒▒▒▒▒▒▓▓▓▓▓▓▓▒▒▒▒▒░ ░ 
+    #   ░░   ▒▓  ██░▓▓▓▓▓▓▓▓▓▓█▓▓▒▒▒ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░▒▓▒▒▒▒▒▒▒▒▒░▒▒░░▒▒░ ░░░░░
+    #   ░▒░░░▒▓   ▓░▒▓▓▓▓▓▓▓▓▓▒      ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▓ ▓░ ▒▒▒▒▒▒▒▒░   ░▒▒▒▒░░░░
+    #   ▒▒░ ░▒▓   ▒▓░▓▓▓▓█▓▒      ░▓▓▓▓▓▓▓█▒▓▒ ▒▓▓▓▓▓▒▓░ ▓    ░▒▒░▒░░░░▒▒▒▒▒░░░░░
+    # ▓▒▒▒▒▒▒▓▓   ▒▓▒▓▓▓▒░     ░▓▓██▓▓▓█▓▒  ░  ▒▓▓▓▓▒▓▒ ▒▓         ▒ ░▓▓▓▓▒ ░░░░▒
+    # ░░▓▓▓▓▒▓▓  ░░▓▓      ░▓████▓▓▓▒▒▒      ▒██▓▒▓█▒   ▓▒         ▒  ░░▒▓▓▒▓▒▒▒ 
+    #    ░░▒▒▒▒   ▒▒     ▒▓█▓▒░░          ░▓██▓▒░░░█░   ▓          ▒ ░  ░▓▒▒▓▓▒▓▒
+    # ░░░░░ ▒▒    ▓▒ ░░             ▒░░▒▒▓▓▓▒░░ ░█▓█▒  ▒▓          ▒░░  ░▓▒▒     
+    # ▒░░░░▒▓▒   ░██          ▒▒▒▒░░▒▓   ▒▒  ░▒░▒███░  ▓▒          ▒░░  ░▓▒░░░░▒ 
+    # ░ ░░░▓▒░ ▒█▒▓█░             ░  ▒░  ░░      ▒▓▒   ▓          ░▒    ░▓▓▒░▒░░░
+    # ░░▒▒▒▓▓▓▓░▓▓ ██▒    ░▒░▒▒▒▒░░▒ ▒▓           ▓   ▒▓          ▒░   ░░▓▓▒░▒▒▒░
+    # ░░▒▒▓█▓░   █ ░█▒      ░ ░ ░▒▒░░▓░   ▓░     ░▓░  █░     ░░   ▒░   ░ ▓▓▒░ ░▒░
+    # ░░▒▓░       █ ██          ░ ░▒ ▒    █▓▒▒▒░░▒▒░ ▓▒           ░       ▒▓▒░ ░ 
+    #
     
     if size is None:
         
         return 'unknown size'
         
+    
+    # my definition of sig figs is nonsense here. basically I mean 'can we show decimal places and not look stupid long?'
     
     if size < 1024:
         
@@ -1506,28 +1621,53 @@ def ToHumanBytes( size ):
     
     suffix_index = 0
     
-    while size >= 1024:
+    d = decimal.Decimal( size )
+    
+    while d >= 1024:
         
-        size = size / 1024
+        d /= 1024
         
         suffix_index += 1
         
     
     suffix = suffixes[ suffix_index ]
     
-    if size < 10.0:
+    ctx = decimal.getcontext()
+    
+    # ok, if we have 237KB, we still want all 237, even if user said 2 sf
+    while d.log10() >= sig_figs:
         
-        # 3.1MB
-        
-        return '{:.1f}{}B'.format( size, suffix )
-        
-    else:
-        
-        # 23MB
-        
-        return '{:.0f}{}B'.format( size, suffix )
+        sig_figs += 1
         
     
+    ctx.prec = sig_figs
+    ctx.rounding = decimal.ROUND_HALF_EVEN
+    
+    d = d.normalize( ctx )
+    
+    try:
+        
+        # if we have 30, this will be normalised to 3E+1, so we want to quantize it back
+        
+        ( sign, digits, exp ) = d.as_tuple()
+        
+        if exp > 0:
+            
+            ctx.prec = 10 # careful to make precising bigger again though, or we get an error
+            
+            d = d.quantize( 0 )
+            
+        
+    except:
+        
+        # blarg
+        pass
+        
+    
+    return '{}{}B'.format( d, suffix )
+    
+ToHumanBytes = BaseToHumanBytes
+
 def ToHumanInt( num ):
     
     num = int( num )
@@ -1584,6 +1724,8 @@ class Call( object ):
     
     def __init__( self, func, *args, **kwargs ):
         
+        self._label = None
+        
         self._func = func
         self._args = args
         self._kwargs = kwargs
@@ -1596,7 +1738,34 @@ class Call( object ):
     
     def __repr__( self ):
         
-        return 'Call: ' + repr( ( self._func, self._args, self._kwargs ) )
+        label = self._GetLabel()
+        
+        return 'Call: {}'.format( label )
+        
+    
+    def _GetLabel( self ) -> str:
+        
+        if self._label is None:
+            
+            # this can actually cause an error with Qt objects that are dead or from the wrong thread, wew!
+            label = '{}( {}, {} )'.format( self._func, self._args, self._kwargs )
+            
+        else:
+            
+            label = self._label
+            
+        
+        return label
+        
+    
+    def GetLabel( self ) -> str:
+        
+        return self._GetLabel()
+        
+    
+    def SetLabel( self, label: str ):
+        
+        self._label = label
         
     
 class ContentUpdate( object ):
@@ -1758,9 +1927,19 @@ class ContentUpdate( object ):
         return len( self.GetHashes() )
         
     
+    def HasReason( self ):
+        
+        return self._reason is not None
+        
+    
     def IsInboxRelated( self ):
         
         return self._action in ( HC.CONTENT_UPDATE_ARCHIVE, HC.CONTENT_UPDATE_INBOX )
+        
+    
+    def SetRow( self, row ):
+        
+        self._row = row
         
     
     def ToTuple( self ):

@@ -9,19 +9,16 @@ from qtpy import QtCore as QC
 from qtpy import QtGui as QG
 from qtpy import QtWidgets as QW
 
-from hydrus.core import HydrusConstants as HC
 from hydrus.core import HydrusData
 from hydrus.core import HydrusGlobals as HG
+from hydrus.core import HydrusImageHandling
 from hydrus.core import HydrusPaths
 from hydrus.core import HydrusSerialisable
+from hydrus.core import HydrusTemp
 
 from hydrus.client import ClientConstants as CC
-from hydrus.client import ClientImageHandling
-from hydrus.client import ClientParsing
-from hydrus.client import ClientPaths
 from hydrus.client.gui import ClientGUIFunctions
 from hydrus.client.gui import QtPorting as QP
-from hydrus.client.importing import ClientImporting
 
 if cv2.__version__.startswith( '2' ):
     
@@ -166,7 +163,7 @@ def DumpToPNG( width, payload_bytes, title, payload_description, text, path ):
     finished_image = numpy.concatenate( ( top_image, payload_image ) )
     
     # this is to deal with unicode paths, which cv2 can't handle
-    ( os_file_handle, temp_path ) = HydrusPaths.GetTempPath( suffix = '.png' )
+    ( os_file_handle, temp_path ) = HydrusTemp.GetTempPath( suffix = '.png' )
     
     try:
         
@@ -182,7 +179,7 @@ def DumpToPNG( width, payload_bytes, title, payload_description, text, path ):
         
     finally:
         
-        HydrusPaths.CleanUpTempPath( os_file_handle, temp_path )
+        HydrusTemp.CleanUpTempPath( os_file_handle, temp_path )
         
     
 def GetPayloadBytes( payload_obj ):
@@ -243,23 +240,40 @@ def GetPayloadDescriptionAndBytes( payload_obj ):
 def LoadFromPNG( path ):
     
     # this is to deal with unicode paths, which cv2 can't handle
-    ( os_file_handle, temp_path ) = HydrusPaths.GetTempPath()
+    ( os_file_handle, temp_path ) = HydrusTemp.GetTempPath()
     
     try:
         
         HydrusPaths.MirrorFile( path, temp_path )
         
-        numpy_image = cv2.imread( temp_path, flags = IMREAD_UNCHANGED )
-        
-    except Exception as e:
-        
-        HydrusData.ShowException( e )
-        
-        raise Exception( 'That did not appear to be a valid image!' )
+        try:
+            
+            numpy_image = cv2.imread( temp_path, flags = IMREAD_UNCHANGED )
+            
+            if numpy_image is None:
+                
+                raise Exception()
+                
+            
+        except Exception as e:
+            
+            try:
+                
+                pil_image = HydrusImageHandling.GeneratePILImage( temp_path )
+                
+                numpy_image = HydrusImageHandling.GenerateNumPyImageFromPILImage( pil_image, dequantize = False )
+                
+            except Exception as e:
+                
+                HydrusData.ShowException( e )
+                
+                raise Exception( 'That did not appear to be a valid image!' )
+                
+            
         
     finally:
         
-        HydrusPaths.CleanUpTempPath( os_file_handle, temp_path )
+        HydrusTemp.CleanUpTempPath( os_file_handle, temp_path )
         
     
     try:

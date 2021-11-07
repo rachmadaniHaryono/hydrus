@@ -279,7 +279,9 @@ class ExportFolder( HydrusSerialisable.SerialisableBaseNamed ):
             
             default_local_file_service_key = HG.client_controller.services_manager.GetDefaultLocalFileServiceKey()
             
-            file_search_context = ClientSearch.FileSearchContext( file_service_key = default_local_file_service_key )
+            location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ default_local_file_service_key ] )
+            
+            file_search_context = ClientSearch.FileSearchContext( location_search_context = location_search_context )
             
         
         if phrase is None:
@@ -517,7 +519,14 @@ class ExportFolder( HydrusSerialisable.SerialisableBaseNamed ):
             
             service_keys_to_deletee_hashes = collections.defaultdict( list )
             
+            delete_lock_for_archived_files = HG.client_controller.new_options.GetBoolean( 'delete_lock_for_archived_files' )
+            
             for media_result in media_results:
+                
+                if delete_lock_for_archived_files and not media_result.GetInbox():
+                    
+                    continue
+                    
                 
                 hash = media_result.GetHash()
                 

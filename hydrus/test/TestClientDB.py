@@ -2,6 +2,8 @@ import os
 import time
 import unittest
 
+from mock import patch
+
 from hydrus.core import HydrusConstants as HC
 from hydrus.core import HydrusData
 from hydrus.core import HydrusGlobals as HG
@@ -14,11 +16,12 @@ from hydrus.client import ClientExporting
 from hydrus.client import ClientSearch
 from hydrus.client import ClientServices
 from hydrus.client.db import ClientDB
-from hydrus.client.gui import ClientGUIManagement
-from hydrus.client.gui import ClientGUIPages
+from hydrus.client.gui.pages import ClientGUIManagement
+from hydrus.client.gui.pages import ClientGUIPages
+from hydrus.client.gui.pages import ClientGUISession
 from hydrus.client.importing import ClientImportLocal
-from hydrus.client.importing import ClientImportOptions
-from hydrus.client.importing import ClientImportFileSeeds
+from hydrus.client.importing import ClientImportFiles
+from hydrus.client.importing.options import FileImportOptions
 from hydrus.client.metadata import ClientTags
 
 from hydrus.test import TestController
@@ -32,6 +35,8 @@ class TestClientDB( unittest.TestCase ):
         
         # class variable
         cls._db = ClientDB.DB( HG.test_controller, TestController.DB_DIR, 'client' )
+        
+        HG.test_controller.SetTestDB( cls._db )
         
     
     @classmethod
@@ -55,13 +60,15 @@ class TestClientDB( unittest.TestCase ):
         
         del cls._db
         
+        HG.test_controller.ClearTestDB()
+        
     
     @classmethod
     def setUpClass( cls ):
         
         cls._db = ClientDB.DB( HG.test_controller, TestController.DB_DIR, 'client' )
         
-        HG.test_controller.SetRead( 'hash_status', ( CC.STATUS_UNKNOWN, None, '' ) )
+        HG.test_controller.SetTestDB( cls._db )
         
     
     @classmethod
@@ -74,6 +81,8 @@ class TestClientDB( unittest.TestCase ):
     def _write( self, action, *args, **kwargs ): return TestClientDB._db.Write( action, True, *args, **kwargs )
     
     def test_autocomplete( self ):
+        
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
         
         tag_search_context = ClientSearch.TagSearchContext( service_key = CC.DEFAULT_LOCAL_TAG_SERVICE_KEY )
         
@@ -93,9 +102,9 @@ class TestClientDB( unittest.TestCase ):
         
         path = os.path.join( HC.STATIC_DIR, 'hydrus.png' )
         
-        file_import_job = ClientImportFileSeeds.FileImportJob( path )
+        file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
         
-        file_import_job.GenerateHashAndStatus()
+        file_import_job.GeneratePreImportHashAndStatus()
         
         file_import_job.GenerateInfo()
         
@@ -233,7 +242,9 @@ class TestClientDB( unittest.TestCase ):
         
         tag_search_context = ClientSearch.TagSearchContext( service_key = HydrusData.GenerateKey() )
         
-        file_search_context = ClientSearch.FileSearchContext( file_service_key = HydrusData.GenerateKey(), tag_search_context = tag_search_context, predicates = [ ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_TAG, 'test' ) ] )
+        location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ HydrusData.GenerateKey() ] )
+        
+        file_search_context = ClientSearch.FileSearchContext( location_search_context = location_search_context, tag_search_context = tag_search_context, predicates = [ ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_TAG, 'test' ) ] )
         
         export_folder = ClientExporting.ExportFolder( 'test path', export_type = HC.EXPORT_FOLDER_TYPE_REGULAR, delete_from_client_after_export = False, file_search_context = file_search_context, period = 3600, phrase = '{hash}' )
         
@@ -254,9 +265,16 @@ class TestClientDB( unittest.TestCase ):
                 
                 predicates = [ ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_NAMESPACE, namespace, inclusive ) ]
                 
-                search_context = ClientSearch.FileSearchContext( file_service_key = CC.LOCAL_FILE_SERVICE_KEY, predicates = predicates )
+                location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ CC.LOCAL_FILE_SERVICE_KEY ] )
+                
+                search_context = ClientSearch.FileSearchContext( location_search_context = location_search_context, predicates = predicates )
                 
                 file_query_ids = self._read( 'file_query_ids', search_context )
+                
+                for file_query_id in file_query_ids:
+                    
+                    self.assertEqual( type( file_query_id ), int )
+                    
                 
                 self.assertEqual( len( file_query_ids ), result )
                 
@@ -268,9 +286,16 @@ class TestClientDB( unittest.TestCase ):
                 
                 predicates = [ ClientSearch.Predicate( predicate_type, info ) ]
                 
-                search_context = ClientSearch.FileSearchContext( file_service_key = CC.LOCAL_FILE_SERVICE_KEY, predicates = predicates )
+                location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ CC.LOCAL_FILE_SERVICE_KEY ] )
+                
+                search_context = ClientSearch.FileSearchContext( location_search_context = location_search_context, predicates = predicates )
                 
                 file_query_ids = self._read( 'file_query_ids', search_context )
+                
+                for file_query_id in file_query_ids:
+                    
+                    self.assertEqual( type( file_query_id ), int )
+                    
                 
                 self.assertEqual( len( file_query_ids ), result )
                 
@@ -282,9 +307,16 @@ class TestClientDB( unittest.TestCase ):
                 
                 predicates = [ ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_TAG, tag, inclusive ) ]
                 
-                search_context = ClientSearch.FileSearchContext( file_service_key = CC.LOCAL_FILE_SERVICE_KEY, predicates = predicates )
+                location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ CC.LOCAL_FILE_SERVICE_KEY ] )
+                
+                search_context = ClientSearch.FileSearchContext( location_search_context = location_search_context, predicates = predicates )
                 
                 file_query_ids = self._read( 'file_query_ids', search_context )
+                
+                for file_query_id in file_query_ids:
+                    
+                    self.assertEqual( type( file_query_id ), int )
+                    
                 
                 self.assertEqual( len( file_query_ids ), result )
                 
@@ -294,9 +326,16 @@ class TestClientDB( unittest.TestCase ):
             
             for ( predicates, result ) in tests:
                 
-                search_context = ClientSearch.FileSearchContext( file_service_key = CC.LOCAL_FILE_SERVICE_KEY, predicates = predicates )
+                location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ CC.LOCAL_FILE_SERVICE_KEY ] )
+                
+                search_context = ClientSearch.FileSearchContext( location_search_context = location_search_context, predicates = predicates )
                 
                 file_query_ids = self._read( 'file_query_ids', search_context )
+                
+                for file_query_id in file_query_ids:
+                    
+                    self.assertEqual( type( file_query_id ), int )
+                    
                 
                 self.assertEqual( len( file_query_ids ), result )
                 
@@ -322,13 +361,18 @@ class TestClientDB( unittest.TestCase ):
         
         path = os.path.join( HC.STATIC_DIR, 'hydrus.png' )
         
-        file_import_job = ClientImportFileSeeds.FileImportJob( path )
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
         
-        file_import_job.GenerateHashAndStatus()
+        file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
+        
+        file_import_job.GeneratePreImportHashAndStatus()
         
         file_import_job.GenerateInfo()
         
-        ( written_status, written_note ) = self._write( 'import_file', file_import_job )
+        file_import_status = self._write( 'import_file', file_import_job )
+        
+        written_status = file_import_status.status
+        written_note = file_import_status.note
         
         self.assertEqual( written_status, CC.STATUS_SUCCESSFUL_AND_NEW )
         self.assertEqual( written_note, '' )
@@ -342,8 +386,8 @@ class TestClientDB( unittest.TestCase ):
         
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_AGE, ( '<', 'delta', ( 1, 1, 1, 1, ) ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_AGE, ( '<', 'delta', ( 0, 0, 0, 0, ) ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_AGE, ( '\u2248', 'delta', ( 1, 1, 1, 1, ) ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_AGE, ( '\u2248', 'delta', ( 0, 0, 0, 0, ) ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_AGE, ( CC.UNICODE_ALMOST_EQUAL_TO, 'delta', ( 1, 1, 1, 1, ) ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_AGE, ( CC.UNICODE_ALMOST_EQUAL_TO, 'delta', ( 0, 0, 0, 0, ) ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_AGE, ( '>', 'delta', ( 1, 1, 1, 1, ) ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_AGE, ( '>', 'delta', ( 0, 0, 0, 0, ) ), 1 ) )
         
@@ -351,8 +395,8 @@ class TestClientDB( unittest.TestCase ):
         
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_DURATION, ( '<', 100, ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_DURATION, ( '<', 0, ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_DURATION, ( '\u2248', 100, ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_DURATION, ( '\u2248', 0, ), 1 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_DURATION, ( CC.UNICODE_ALMOST_EQUAL_TO, 100, ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_DURATION, ( CC.UNICODE_ALMOST_EQUAL_TO, 0, ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_DURATION, ( '=', 100, ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_DURATION, ( '=', 0, ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_DURATION, ( '>', 100, ), 0 ) )
@@ -374,9 +418,9 @@ class TestClientDB( unittest.TestCase ):
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( '<', 201 ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( '<', 200 ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( '<', 0 ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( '\u2248', 200 ), 1 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( '\u2248', 60 ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( '\u2248', 0 ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( CC.UNICODE_ALMOST_EQUAL_TO, 200 ), 1 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( CC.UNICODE_ALMOST_EQUAL_TO, 60 ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( CC.UNICODE_ALMOST_EQUAL_TO, 0 ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( '=', 200 ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( '=', 0 ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_HEIGHT, ( '>', 200 ), 0 ) )
@@ -416,8 +460,8 @@ class TestClientDB( unittest.TestCase ):
         
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_NUM_WORDS, ( '<', 1 ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_NUM_WORDS, ( '<', 0 ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_NUM_WORDS, ( '\u2248', 0 ), 1 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_NUM_WORDS, ( '\u2248', 1 ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_NUM_WORDS, ( CC.UNICODE_ALMOST_EQUAL_TO, 0 ), 1 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_NUM_WORDS, ( CC.UNICODE_ALMOST_EQUAL_TO, 1 ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_NUM_WORDS, ( '=', 0 ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_NUM_WORDS, ( '=', 1 ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_NUM_WORDS, ( '>', 0 ), 0 ) )
@@ -425,9 +469,9 @@ class TestClientDB( unittest.TestCase ):
         
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_RATIO, ( '=', 1, 1 ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_RATIO, ( '=', 4, 3 ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_RATIO, ( '\u2248', 1, 1 ), 1 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_RATIO, ( '\u2248', 200, 201 ), 1 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_RATIO, ( '\u2248', 4, 1 ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_RATIO, ( CC.UNICODE_ALMOST_EQUAL_TO, 1, 1 ), 1 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_RATIO, ( CC.UNICODE_ALMOST_EQUAL_TO, 200, 201 ), 1 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_RATIO, ( CC.UNICODE_ALMOST_EQUAL_TO, 4, 1 ), 0 ) )
         
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIMILAR_TO, ( ( hash, ), 5 ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIMILAR_TO, ( ( bytes.fromhex( '0123456789abcdef' * 4 ), ), 5 ), 0 ) )
@@ -437,8 +481,8 @@ class TestClientDB( unittest.TestCase ):
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( '<', 5271, HydrusData.ConvertUnitToInt( 'B' ) ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( '=', 5270, HydrusData.ConvertUnitToInt( 'B' ) ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( '=', 0, HydrusData.ConvertUnitToInt( 'B' ) ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( '\u2248', 5270, HydrusData.ConvertUnitToInt( 'B' ) ), 1 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( '\u2248', 0, HydrusData.ConvertUnitToInt( 'B' ) ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( CC.UNICODE_ALMOST_EQUAL_TO, 5270, HydrusData.ConvertUnitToInt( 'B' ) ), 1 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( CC.UNICODE_ALMOST_EQUAL_TO, 0, HydrusData.ConvertUnitToInt( 'B' ) ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( '>', 5270, HydrusData.ConvertUnitToInt( 'B' ) ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( '>', 5269, HydrusData.ConvertUnitToInt( 'B' ) ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_SIZE, ( '>', 0, HydrusData.ConvertUnitToInt( 'B' ) ), 1 ) )
@@ -449,9 +493,9 @@ class TestClientDB( unittest.TestCase ):
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( '<', 201 ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( '<', 200 ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( '<', 0 ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( '\u2248', 200 ), 1 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( '\u2248', 60 ), 0 ) )
-        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( '\u2248', 0 ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( CC.UNICODE_ALMOST_EQUAL_TO, 200 ), 1 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( CC.UNICODE_ALMOST_EQUAL_TO, 60 ), 0 ) )
+        tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( CC.UNICODE_ALMOST_EQUAL_TO, 0 ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( '=', 200 ), 1 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( '=', 0 ), 0 ) )
         tests.append( ( ClientSearch.PREDICATE_TYPE_SYSTEM_WIDTH, ( '>', 200 ), 0 ) )
@@ -699,9 +743,11 @@ class TestClientDB( unittest.TestCase ):
         
         path = os.path.join( HC.STATIC_DIR, 'hydrus.png' )
         
-        file_import_job = ClientImportFileSeeds.FileImportJob( path )
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
         
-        file_import_job.GenerateHashAndStatus()
+        file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
+        
+        file_import_job.GeneratePreImportHashAndStatus()
         
         file_import_job.GenerateInfo()
         
@@ -751,9 +797,11 @@ class TestClientDB( unittest.TestCase ):
         
         #
         
-        file_import_job = ClientImportFileSeeds.FileImportJob( path )
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
         
-        file_import_job.GenerateHashAndStatus()
+        file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
+        
+        file_import_job.GeneratePreImportHashAndStatus()
         
         file_import_job.GenerateInfo()
         
@@ -857,9 +905,11 @@ class TestClientDB( unittest.TestCase ):
         
         #
         
-        file_import_job = ClientImportFileSeeds.FileImportJob( path )
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
         
-        file_import_job.GenerateHashAndStatus()
+        file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
+        
+        file_import_job.GeneratePreImportHashAndStatus()
         
         file_import_job.GenerateInfo()
         
@@ -948,137 +998,218 @@ class TestClientDB( unittest.TestCase ):
     
     def test_gui_sessions( self ):
         
-        def qt_code():
+        page_containers = []
+        hashes_to_page_data = {}
+        
+        #
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerImportGallery()
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerImportMultipleWatcher()
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        service_keys_to_tags = ClientTags.ServiceKeysToTags( { HydrusData.GenerateKey() : [ 'some', 'tags' ] } )
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerImportHDD( [ 'some', 'paths' ], FileImportOptions.FileImportOptions(), { 'paths' : service_keys_to_tags }, True )
+        
+        management_controller.GetVariable( 'hdd_import' ).PausePlay() # to stop trying to import 'some' 'paths'
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerImportSimpleDownloader()
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerPetitions( HG.test_controller.example_tag_repo_service_key )
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ CC.LOCAL_FILE_SERVICE_KEY ] )
+        
+        fsc = ClientSearch.FileSearchContext( location_search_context = location_search_context, predicates = [] )
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'search', fsc, True )
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        tag_search_context = ClientSearch.TagSearchContext( service_key = CC.DEFAULT_LOCAL_TAG_SERVICE_KEY )
+        
+        location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ CC.LOCAL_FILE_SERVICE_KEY ] )
+        
+        fsc = ClientSearch.FileSearchContext( location_search_context = location_search_context, tag_search_context = tag_search_context, predicates = [] )
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'search', fsc, False )
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [ HydrusData.GenerateKey() for i in range( 200 ) ] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ CC.LOCAL_FILE_SERVICE_KEY ] )
+        
+        fsc = ClientSearch.FileSearchContext( location_search_context = location_search_context, predicates = [ ClientSearch.SYSTEM_PREDICATE_ARCHIVE ] )
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'files', fsc, True )
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ CC.LOCAL_FILE_SERVICE_KEY ] )
+        
+        fsc = ClientSearch.FileSearchContext( location_search_context = location_search_context, predicates = [ ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_TAG, 'tag', min_current_count = 1, min_pending_count = 3 ) ] )
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'wew lad', fsc, True )
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        location_search_context = ClientSearch.LocationSearchContext( current_service_keys = [ CC.LOCAL_FILE_SERVICE_KEY ] )
+        
+        fsc = ClientSearch.FileSearchContext( location_search_context = location_search_context, predicates = [ ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_SYSTEM_RATING, ( '>', 0.2, TestController.LOCAL_RATING_NUMERICAL_SERVICE_KEY ) ), ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_SYSTEM_FILE_SERVICE, ( True, HC.CONTENT_STATUS_CURRENT, CC.LOCAL_FILE_SERVICE_KEY ) ) ] )
+        
+        management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'files', fsc, True )
+        
+        page_name = management_controller.GetPageName()
+        
+        page_data = ClientGUISession.GUISessionPageData( management_controller, [] )
+        
+        page_data_hash = page_data.GetSerialisedHash()
+        
+        page_container = ClientGUISession.GUISessionContainerPageSingle( page_name, page_data_hash = page_data_hash )
+        
+        page_containers.append( page_container )
+        
+        hashes_to_page_data[ page_data_hash ] = page_data
+        
+        #
+        
+        top_notebook_container = ClientGUISession.GUISessionContainerPageNotebook( 'top notebook', page_containers = page_containers)
+        
+        session = ClientGUISession.GUISessionContainer( 'test_session', top_notebook_container = top_notebook_container, hashes_to_page_data = hashes_to_page_data )
+        
+        self.assertTrue( session.HasAllPageData() )
+        
+        self._write( 'serialisable', session )
+        
+        loaded_session = self._read( 'gui_session', 'test_session' )
+        
+        self.assertTrue( loaded_session.HasAllPageData() )
+        
+        page_names = []
+        
+        for page_container in loaded_session.GetTopNotebook().GetPageContainers():
             
-            test_frame = TestController.TestFrame()
-            
-            try:
-                
-                session = ClientGUIPages.GUISession( 'test_session' )
-                
-                #
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerImportGallery()
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerImportMultipleWatcher()
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                service_keys_to_tags = ClientTags.ServiceKeysToTags( { HydrusData.GenerateKey() : [ 'some', 'tags' ] } )
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerImportHDD( [ 'some', 'paths' ], ClientImportOptions.FileImportOptions(), { 'paths' : service_keys_to_tags }, True )
-                
-                management_controller.GetVariable( 'hdd_import' ).PausePlay() # to stop trying to import 'some' 'paths'
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerImportSimpleDownloader()
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerPetitions( HG.test_controller.example_tag_repo_service_key )
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                fsc = ClientSearch.FileSearchContext( file_service_key = CC.LOCAL_FILE_SERVICE_KEY, predicates = [] )
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'search', fsc, True )
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                tag_search_context = ClientSearch.TagSearchContext( service_key = CC.DEFAULT_LOCAL_TAG_SERVICE_KEY )
-                
-                fsc = ClientSearch.FileSearchContext( file_service_key = CC.LOCAL_FILE_SERVICE_KEY, tag_search_context = tag_search_context, predicates = [] )
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'search', fsc, False )
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [ HydrusData.GenerateKey() for i in range( 200 ) ] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                fsc = ClientSearch.FileSearchContext( file_service_key = CC.LOCAL_FILE_SERVICE_KEY, predicates = [ ClientSearch.SYSTEM_PREDICATE_ARCHIVE ] )
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'files', fsc, True )
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                fsc = ClientSearch.FileSearchContext( file_service_key = CC.LOCAL_FILE_SERVICE_KEY, predicates = [ ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_TAG, 'tag', min_current_count = 1, min_pending_count = 3 ) ] )
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'wew lad', fsc, True )
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                fsc = ClientSearch.FileSearchContext( file_service_key = CC.LOCAL_FILE_SERVICE_KEY, predicates = [ ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_SYSTEM_RATING, ( '>', 0.2, TestController.LOCAL_RATING_NUMERICAL_SERVICE_KEY ) ), ClientSearch.Predicate( ClientSearch.PREDICATE_TYPE_SYSTEM_FILE_SERVICE, ( True, HC.CONTENT_STATUS_CURRENT, CC.LOCAL_FILE_SERVICE_KEY ) ) ] )
-                
-                management_controller = ClientGUIManagement.CreateManagementControllerQuery( 'files', fsc, True )
-                
-                page = ClientGUIPages.Page( test_frame, HG.test_controller, management_controller, [] )
-                
-                session.AddPageTuple( page )
-                
-                #
-                
-                self._write( 'serialisable', session )
-                
-                result = self._read( 'serialisable_named', HydrusSerialisable.SERIALISABLE_TYPE_GUI_SESSION, 'test_session' )
-                
-                page_names = []
-                
-                for ( page_type, page_data ) in result.GetPageTuples():
-                    
-                    if page_type == 'page':
-                        
-                        ( management_controller, initial_hashes ) = page_data
-                        
-                        page_names.append( management_controller.GetPageName() )
-                        
-                    
-                
-                self.assertEqual( page_names, [ 'gallery', 'watcher', 'import', 'simple downloader', 'example tag repo petitions', 'search', 'search', 'files', 'wew lad', 'files' ] )
-                
-            finally:
-                
-                test_frame.deleteLater()
-                
+            page_names.append( page_container.GetName() )
             
         
-        HG.test_controller.CallBlockingToQt( HG.test_controller.win, qt_code )
+        self.assertEqual( page_names, [ 'gallery', 'watcher', 'import', 'simple downloader', 'example tag repo petitions', 'search', 'search', 'files', 'wew lad', 'files' ] )
+        
         
     
     def test_import( self ):
@@ -1096,38 +1227,31 @@ class TestClientDB( unittest.TestCase ):
         test_files.append( ( 'muh_apng.png', '9e7b8b5abc7cb11da32db05671ce926a2a2b701415d1b2cb77a28deea51010c3', 616956, HC.IMAGE_APNG, 500, 500, { 3133, 1880, 1125, 1800 }, { 27, 47 }, False, None ) )
         test_files.append( ( 'muh_gif.gif', '00dd9e9611ebc929bfc78fde99a0c92800bbb09b9d18e0946cea94c099b211c2', 15660, HC.IMAGE_GIF, 329, 302, { 600 }, { 5 }, False, None ) )
         
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
+        
         for ( filename, hex_hash, size, mime, width, height, durations, num_frames, has_audio, num_words ) in test_files:
+            
+            HG.test_controller.SetRead( 'hash_status', ClientImportFiles.FileImportStatus.STATICGetUnknownStatus() )
             
             path = os.path.join( HC.STATIC_DIR, 'testing', filename )
             
             hash = bytes.fromhex( hex_hash )
             
-            file_import_job = ClientImportFileSeeds.FileImportJob( path )
+            file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
             
-            file_import_job.GenerateHashAndStatus()
+            file_import_job.GeneratePreImportHashAndStatus()
             
             file_import_job.GenerateInfo()
             
-            ( written_status, written_note ) = self._write( 'import_file', file_import_job )
+            file_import_status = self._write( 'import_file', file_import_job )
+            
+            written_status = file_import_status.status
+            written_hash = file_import_job.GetHash()
+            written_note = file_import_status.note
             
             self.assertEqual( written_status, CC.STATUS_SUCCESSFUL_AND_NEW )
             self.assertEqual( written_note, '' )
             self.assertEqual( file_import_job.GetHash(), hash )
-            
-            file_import_job = ClientImportFileSeeds.FileImportJob( path )
-            
-            file_import_job.GenerateHashAndStatus()
-            
-            file_import_job.GenerateInfo()
-            
-            ( written_status, written_note ) = self._write( 'import_file', file_import_job )
-            
-            # would be redundant, but triggers the 'it is missing from db' hook
-            self.assertEqual( written_status, CC.STATUS_SUCCESSFUL_AND_NEW )
-            self.assertIn( 'already in the db', written_note )
-            self.assertEqual( file_import_job.GetHash(), hash )
-            
-            written_hash = file_import_job.GetHash()
             
             media_result = self._read( 'media_result', written_hash )
             
@@ -1219,15 +1343,22 @@ class TestClientDB( unittest.TestCase ):
         
         #
         
-        result = self._read( 'hash_status', 'md5', md5 )
+        file_import_status = self._read( 'hash_status', 'md5', md5 )
         
-        self.assertEqual( result, ( CC.STATUS_UNKNOWN, None, '' ) )
+        written_status = file_import_status.status
+        written_hash = file_import_status.hash
+        written_note = file_import_status.note
+        
+        self.assertEqual( written_status, CC.STATUS_UNKNOWN )
+        self.assertEqual( written_hash, None )
         
         #
         
-        file_import_job = ClientImportFileSeeds.FileImportJob( path )
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
         
-        file_import_job.GenerateHashAndStatus()
+        file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
+        
+        file_import_job.GeneratePreImportHashAndStatus()
         
         file_import_job.GenerateInfo()
         
@@ -1235,14 +1366,18 @@ class TestClientDB( unittest.TestCase ):
         
         #
         
-        ( status, written_hash, note ) = self._read( 'hash_status', 'md5', md5 )
+        file_import_status = self._read( 'hash_status', 'md5', md5 )
+        
+        written_status = file_import_status.status
+        written_hash = file_import_status.hash
+        written_note = file_import_status.note
         
         # would be redundant, but sometimes(?) triggers the 'it is missing from db' hook
-        self.assertIn( status, ( CC.STATUS_UNKNOWN, CC.STATUS_SUCCESSFUL_BUT_REDUNDANT ) )
+        self.assertIn( written_status, ( CC.STATUS_UNKNOWN, CC.STATUS_SUCCESSFUL_BUT_REDUNDANT ) )
         self.assertEqual( written_hash, hash )
-        if status == CC.STATUS_UNKNOWN:
+        if written_status == CC.STATUS_UNKNOWN:
             
-            self.assertIn( 'already in the db', note )
+            self.assertIn( 'already in the db', written_note )
             
         
         #
@@ -1255,9 +1390,14 @@ class TestClientDB( unittest.TestCase ):
         
         #
         
-        ( status, hash, note ) = self._read( 'hash_status', 'md5', md5 )
+        file_import_status = self._read( 'hash_status', 'md5', md5 )
         
-        self.assertEqual( ( status, hash ), ( CC.STATUS_DELETED, hash ) )
+        written_status = file_import_status.status
+        written_hash = file_import_status.hash
+        written_note = file_import_status.note
+        
+        self.assertEqual( written_status, CC.STATUS_DELETED )
+        self.assertEqual( written_hash, hash )
         
         # now physical delete
         
@@ -1271,15 +1411,22 @@ class TestClientDB( unittest.TestCase ):
         
         #
         
-        result = self._read( 'hash_status', 'md5', md5 )
+        file_import_status = self._read( 'hash_status', 'md5', md5 )
         
-        self.assertEqual( result, ( CC.STATUS_UNKNOWN, None, '' ) )
+        written_status = file_import_status.status
+        written_hash = file_import_status.hash
+        written_note = file_import_status.note
+        
+        self.assertEqual( written_status, CC.STATUS_UNKNOWN )
+        self.assertEqual( written_hash, None )
         
         #
         
-        file_import_job = ClientImportFileSeeds.FileImportJob( path )
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
         
-        file_import_job.GenerateHashAndStatus()
+        file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
+        
+        file_import_job.GeneratePreImportHashAndStatus()
         
         file_import_job.GenerateInfo()
         
@@ -1287,14 +1434,18 @@ class TestClientDB( unittest.TestCase ):
         
         #
         
-        ( status, written_hash, note ) = self._read( 'hash_status', 'md5', md5 )
+        file_import_status = self._read( 'hash_status', 'md5', md5 )
+        
+        written_status = file_import_status.status
+        written_hash = file_import_status.hash
+        written_note = file_import_status.note
         
         # would be redundant, but sometimes(?) triggers the 'it is missing from db' hook
-        self.assertIn( status, ( CC.STATUS_UNKNOWN, CC.STATUS_SUCCESSFUL_BUT_REDUNDANT ) )
+        self.assertIn( written_status, ( CC.STATUS_UNKNOWN, CC.STATUS_SUCCESSFUL_BUT_REDUNDANT ) )
         self.assertEqual( written_hash, hash )
-        if status == CC.STATUS_UNKNOWN:
+        if written_status == CC.STATUS_UNKNOWN:
             
-            self.assertIn( 'already in the db', note )
+            self.assertIn( 'already in the db', written_note )
             
         
         #
@@ -1307,9 +1458,14 @@ class TestClientDB( unittest.TestCase ):
         
         #
         
-        ( status, hash, note ) = self._read( 'hash_status', 'md5', md5 )
+        file_import_status = self._read( 'hash_status', 'md5', md5 )
         
-        self.assertEqual( ( status, hash ), ( CC.STATUS_DELETED, hash ) )
+        written_status = file_import_status.status
+        written_hash = file_import_status.hash
+        written_note = file_import_status.note
+        
+        self.assertEqual( written_status, CC.STATUS_DELETED )
+        self.assertEqual( written_hash, hash )
         
     
     def test_media_results( self ):
@@ -1318,9 +1474,11 @@ class TestClientDB( unittest.TestCase ):
         
         path = os.path.join( HC.STATIC_DIR, 'hydrus.png' )
         
-        file_import_job = ClientImportFileSeeds.FileImportJob( path )
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
         
-        file_import_job.GenerateHashAndStatus()
+        file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
+        
+        file_import_job.GeneratePreImportHashAndStatus()
         
         file_import_job.GenerateInfo()
         
@@ -1377,14 +1535,253 @@ class TestClientDB( unittest.TestCase ):
     
     def test_nums_pending( self ):
         
+        TestClientDB._clear_db()
+        
         result = self._read( 'nums_pending' )
         
         self.assertEqual( result, {} )
         
-        # we can do more testing when I add repo service to this testing framework
+        #
+        
+        services = list( self._read( 'services' ) )
+        
+        tag_sk = HydrusData.GenerateKey()
+        file_sk = HydrusData.GenerateKey()
+        ipfs_sk = HydrusData.GenerateKey()
+        
+        services.append( ClientServices.GenerateService( tag_sk, HC.TAG_REPOSITORY, 'test tag repo' ) )
+        services.append( ClientServices.GenerateService( file_sk, HC.FILE_REPOSITORY, 'test file repo' ) )
+        services.append( ClientServices.GenerateService( ipfs_sk, HC.IPFS, 'test ipfs' ) )
+        
+        self._write( 'update_services', services )
+        
+        #
+        
+        result = self._read( 'nums_pending' )
+        
+        expected_result = {
+            tag_sk: {
+                HC.SERVICE_INFO_NUM_PENDING_MAPPINGS : 0,
+                HC.SERVICE_INFO_NUM_PETITIONED_MAPPINGS : 0,
+                HC.SERVICE_INFO_NUM_PENDING_TAG_SIBLINGS : 0,
+                HC.SERVICE_INFO_NUM_PETITIONED_TAG_SIBLINGS : 0,
+                HC.SERVICE_INFO_NUM_PENDING_TAG_PARENTS : 0,
+                HC.SERVICE_INFO_NUM_PETITIONED_TAG_PARENTS : 0
+            },
+            file_sk: {
+                HC.SERVICE_INFO_NUM_PENDING_FILES: 0,
+                HC.SERVICE_INFO_NUM_PETITIONED_FILES: 0
+            },
+            ipfs_sk: {
+                HC.SERVICE_INFO_NUM_PENDING_FILES: 0,
+                HC.SERVICE_INFO_NUM_PETITIONED_FILES: 0
+            }
+        }
+        
+        self.assertEqual( result, expected_result )
+        
+        #
+        
+        hashes = [ os.urandom( 32 ) for i in range( 64 ) ]
+        
+        tags = [ 'this', 'is', 'a:test' ]
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_MAPPINGS, HC.CONTENT_UPDATE_PEND, ( tag, hashes ) ) for tag in tags ]
+        
+        service_keys_to_content_updates = { tag_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        hashes = [ os.urandom( 32 ) for i in range( 64 ) ]
+        
+        tags = [ 'bad tag', 'bad' ]
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_MAPPINGS, HC.CONTENT_UPDATE_ADD, ( tag, hashes ) ) for tag in tags ]
+        
+        service_keys_to_content_updates = { tag_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_MAPPINGS, HC.CONTENT_UPDATE_PETITION, ( tag, hashes ), reason = 'yo' ) for tag in tags ]
+        
+        service_keys_to_content_updates = { tag_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        pairs = [
+            ( 'sib tag 1a', 'sib tag 1b' ),
+            ( 'sib tag 2a', 'sib tag 2b' ),
+            ( 'sib tag 3a', 'sib tag 3b' ),
+            ( 'sib tag 4a', 'sib tag 4b' )
+        ]
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_TAG_SIBLINGS, HC.CONTENT_UPDATE_PEND, pair, reason = 'good sibling m8' ) for pair in pairs ]
+        
+        service_keys_to_content_updates = { tag_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        pairs = [
+            ( 'samus aran', 'princess peach' ),
+            ( 'lara croft', 'princess peach' )
+        ]
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_TAG_SIBLINGS, HC.CONTENT_UPDATE_ADD, pair ) for pair in pairs ]
+        
+        service_keys_to_content_updates = { tag_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_TAG_SIBLINGS, HC.CONTENT_UPDATE_PETITION, pair, reason = 'mistake' ) for pair in pairs ]
+        
+        service_keys_to_content_updates = { tag_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        pairs = [
+            ( 'par tag 1a', 'par tag 1b' ),
+            ( 'par tag 2a', 'par tag 2b' ),
+            ( 'par tag 3a', 'par tag 3b' )
+        ]
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_TAG_PARENTS, HC.CONTENT_UPDATE_PEND, pair, reason = 'good parent m8' ) for pair in pairs ]
+        
+        service_keys_to_content_updates = { tag_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        pairs = [
+            ( 'ayanami rei', 'zelda' )
+        ]
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_TAG_PARENTS, HC.CONTENT_UPDATE_ADD, pair ) for pair in pairs ]
+        
+        service_keys_to_content_updates = { tag_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_TAG_PARENTS, HC.CONTENT_UPDATE_PETITION, pair, reason = 'mistake' ) for pair in pairs ]
+        
+        service_keys_to_content_updates = { tag_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        hashes = [ os.urandom( 32 ) for i in range( 15 ) ]
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_FILES, HC.CONTENT_UPDATE_PEND, hashes ) ]
+        
+        service_keys_to_content_updates = { file_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        hashes = [ os.urandom( 32 ) for i in range( 20 ) ]
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_FILES, HC.CONTENT_UPDATE_PEND, hashes ) ]
+        
+        service_keys_to_content_updates = { ipfs_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        test_files = {
+            '5d884d84813beeebd59a35e474fa3e4742d0f2b6679faa7609b245ddbbd05444' : 'muh_jpg.jpg',
+            'cdc67d3b377e6e1397ffa55edc5b50f6bdf4482c7a6102c6f27fa351429d6f49' : 'muh_png.png',
+            '9e7b8b5abc7cb11da32db05671ce926a2a2b701415d1b2cb77a28deea51010c3' : 'muh_apng.png'
+        }
+        
+        file_import_options = HG.client_controller.new_options.GetDefaultFileImportOptions( 'loud' )
+        
+        for ( hash, filename ) in test_files.items():
+            
+            HG.test_controller.SetRead( 'hash_status', ClientImportFiles.FileImportStatus.STATICGetUnknownStatus() )
+            
+            path = os.path.join( HC.STATIC_DIR, 'testing', filename )
+            
+            file_import_job = ClientImportFiles.FileImportJob( path, file_import_options )
+            
+            file_import_job.GeneratePreImportHashAndStatus()
+            
+            file_import_job.GenerateInfo()
+            
+            file_import_status = self._write( 'import_file', file_import_job )
+            
+        
+        hashes = list( [ bytes.fromhex( hh ) for hh in test_files.keys() ] )
+        
+        media_results = self._read( 'media_results', hashes )
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_FILES, HC.CONTENT_UPDATE_ADD, ( mr.GetFileInfoManager(), 100 ) ) for mr in media_results ]
+        
+        service_keys_to_content_updates = { file_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_FILES, HC.CONTENT_UPDATE_ADD, ( mr.GetFileInfoManager(), os.urandom( 16 ).hex() ) ) for mr in media_results ]
+        
+        service_keys_to_content_updates = { ipfs_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_FILES, HC.CONTENT_UPDATE_PETITION, hashes, reason = 'nope' ) ]
+        
+        service_keys_to_content_updates = { file_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        content_updates = [ HydrusData.ContentUpdate( HC.CONTENT_TYPE_FILES, HC.CONTENT_UPDATE_PETITION, hashes ) ]
+        
+        service_keys_to_content_updates = { ipfs_sk : content_updates }
+        
+        self._write( 'content_updates', service_keys_to_content_updates )
+        
+        #
+        
+        result = self._read( 'nums_pending' )
+        
+        expected_result = {
+            tag_sk: {
+                HC.SERVICE_INFO_NUM_PENDING_MAPPINGS : 64 * 3,
+                HC.SERVICE_INFO_NUM_PETITIONED_MAPPINGS : 64 * 2,
+                HC.SERVICE_INFO_NUM_PENDING_TAG_SIBLINGS : 4,
+                HC.SERVICE_INFO_NUM_PETITIONED_TAG_SIBLINGS : 2,
+                HC.SERVICE_INFO_NUM_PENDING_TAG_PARENTS : 3,
+                HC.SERVICE_INFO_NUM_PETITIONED_TAG_PARENTS : 1
+            },
+            file_sk: {
+                HC.SERVICE_INFO_NUM_PENDING_FILES: 15,
+                HC.SERVICE_INFO_NUM_PETITIONED_FILES: 3
+            },
+            ipfs_sk: {
+                HC.SERVICE_INFO_NUM_PENDING_FILES: 20,
+                HC.SERVICE_INFO_NUM_PETITIONED_FILES: 3
+            }
+        }
+        
+        self.assertEqual( result, expected_result )
         
     
     def test_pending( self ):
+        
+        TestClientDB._clear_db()
         
         service_key = HydrusData.GenerateKey()
         
@@ -1422,7 +1819,7 @@ class TestClientDB( unittest.TestCase ):
         
         #
         
-        self._write( 'update_services', old_services )
+        TestClientDB._clear_db()
         
     
     def test_pixiv_account( self ):
@@ -1442,6 +1839,8 @@ class TestClientDB( unittest.TestCase ):
         
     
     def test_services( self ):
+        
+        TestClientDB._clear_db()
         
         result = self._read( 'services', ( HC.LOCAL_FILE_DOMAIN, HC.LOCAL_FILE_TRASH_DOMAIN, HC.COMBINED_LOCAL_FILE, HC.LOCAL_TAG ) )
         
@@ -1512,7 +1911,7 @@ class TestClientDB( unittest.TestCase ):
             
             for ( shortcut, command ) in shortcuts:
                 
-                self.assertEqual( result.GetCommand( shortcut ).GetData(), command.GetData() )
+                self.assertEqual( tuple( result.GetCommand( shortcut )._data ), tuple( command._data ) )
                 
             
             #

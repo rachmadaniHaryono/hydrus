@@ -1246,7 +1246,16 @@ class CallAfterEventCatcher( QC.QObject ):
         
         if event.type() == CallAfterEventType and isinstance( event, CallAfterEvent ):
             
-            event.Execute()
+            if HG.profile_mode:
+                
+                summary = 'Profiling CallAfter Event: {}'.format( event._fn )
+                
+                HydrusData.Profile( summary, 'event.Execute()', globals(), locals(), min_duration_ms = HG.callto_profile_min_job_time_ms )
+                
+            else:
+                
+                event.Execute()
+                
             
             event.accept()
             
@@ -1445,34 +1454,6 @@ def SetBackgroundColour( widget, colour ):
         widget.setStyleSheet( '#{} {{ background-color: {} }}'.format( object_name, QG.QColor( colour ).name() ) )
         
     
-def SetForegroundColour( widget, colour ):
-    
-    widget.setAutoFillBackground( True )
-    
-    object_name = widget.objectName()
-
-    if not object_name:
-        
-        object_name = str( id( widget ) )
-        
-        widget.setObjectName( object_name )
-        
-
-    if isinstance( colour, QG.QColor ):
-
-        widget.setStyleSheet( '#{} {{ color: {} }}'.format( object_name, colour.name()) )
-        
-    elif isinstance( colour, tuple ):
-        
-        colour = QG.QColor( *colour )
-        
-        widget.setStyleSheet( '#{} {{ color: {} }}'.format( object_name, colour.name() ) )
-        
-    else:
-
-        widget.setStyleSheet( '#{} {{ color: {} }}'.format( object_name, QG.QColor( colour ).name() ) )
-        
-
 def SetStringSelection( combobox, string ):
     
     index = combobox.findText( string )
@@ -2574,9 +2555,9 @@ class CheckBoxDelegate(QW.QStyledItemDelegate):
         
 
 class CollectComboCtrl( QW.QComboBox ):
-
+    
     itemChanged = QC.Signal()
-
+    
     def __init__( self, parent, media_collect ):
         
         QW.QComboBox.__init__( self, parent )
@@ -2587,26 +2568,35 @@ class CollectComboCtrl( QW.QComboBox ):
         self.setItemDelegate( CheckBoxDelegate() )
         
         self.setModel( QG.QStandardItemModel( self ) )
-
+        
         text_and_data_tuples = set()
-
-        sort_by = HC.options[ 'sort_by' ]
-
-        for ( sort_by_type, namespaces ) in sort_by:
+        
+        for media_sort in HG.client_controller.new_options.GetDefaultNamespaceSorts():
             
-            text_and_data_tuples.update( namespaces )
+            namespaces = media_sort.GetNamespaces()
             
-
+            try:
+                
+                text_and_data_tuples.update( namespaces )
+                
+            except:
+                
+                HydrusData.DebugPrint( 'Bad namespaces: {}'.format( namespaces ) )
+                
+                HydrusData.ShowText( 'Hey, your namespace-based sorts are likely damaged. Details have been written to the log, please let hydev know!' )
+                
+            
+        
         text_and_data_tuples = sorted( ( ( namespace, ( 'namespace', namespace ) ) for namespace in text_and_data_tuples ) )
         
         ratings_services = HG.client_controller.services_manager.GetServices( ( HC.LOCAL_RATING_LIKE, HC.LOCAL_RATING_NUMERICAL ) )
-
+        
         for ratings_service in ratings_services:
             
             text_and_data_tuples.append( ( ratings_service.GetName(), ('rating', ratings_service.GetServiceKey() ) ) )
             
-
-        for (text, data) in text_and_data_tuples:
+        
+        for ( text, data ) in text_and_data_tuples:
 
             self.Append( text, data )
             
@@ -2637,8 +2627,8 @@ class CollectComboCtrl( QW.QComboBox ):
     
     def GetValues( self ):
 
-        namespaces = [ ]
-        rating_service_keys = [ ]
+        namespaces = []
+        rating_service_keys = []
 
         for index in self.GetCheckedItems():
 

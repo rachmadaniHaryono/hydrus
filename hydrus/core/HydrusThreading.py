@@ -390,11 +390,11 @@ class THREADCallToThread( DAEMON ):
                     
                     self._callable = ( callable, args, kwargs )
                     
-                    if HG.callto_profile_mode:
+                    if HG.profile_mode:
                         
                         summary = 'Profiling CallTo Job: {}'.format( callable )
                         
-                        HydrusData.Profile( summary, 'callable( *args, **kwargs )', globals(), locals(), min_duration_ms = 3, show_summary = True )
+                        HydrusData.Profile( summary, 'callable( *args, **kwargs )', globals(), locals(), min_duration_ms = HG.callto_profile_min_job_time_ms )
                         
                     else:
                         
@@ -528,31 +528,34 @@ class JobScheduler( threading.Thread ):
                 
                 next_job = self._waiting[0]
                 
-                if next_job.IsDue():
+                if not next_job.IsDue():
                     
-                    next_job = self._waiting.pop( 0 )
+                    # front is not due, so nor is the rest of the list
+                    break
                     
-                    if next_job.IsCancelled():
-                        
-                        continue
-                        
+                
+                next_job = self._waiting.pop( 0 )
+                
+            
+            if next_job.IsCancelled():
+                
+                continue
+                
+            
+            if next_job.SlotOK():
+                
+                # important this happens outside of the waiting lock lmao!
+                next_job.StartWork()
+                
+                jobs_started += 1
+                
+            else:
+                
+                # delay is automatically set by SlotOK
+                
+                with self._waiting_lock:
                     
-                    if next_job.SlotOK():
-                        
-                        next_job.StartWork()
-                        
-                        jobs_started += 1
-                        
-                    else:
-                        
-                        # delay is automatically set by SlotOK
-                        
-                        bisect.insort( self._waiting, next_job )
-                        
-                    
-                else:
-                    
-                    break # all the rest in the queue are not due
+                    bisect.insort( self._waiting, next_job )
                     
                 
             
@@ -586,6 +589,14 @@ class JobScheduler( threading.Thread ):
         with self._waiting_lock:
             
             return HydrusData.ToHumanInt( len( self._waiting ) ) + ' jobs'
+            
+        
+    
+    def GetJobs( self ):
+        
+        with self._waiting_lock:
+            
+            return list( self._waiting )
             
         
     
@@ -681,7 +692,9 @@ class JobScheduler( threading.Thread ):
     
 class SchedulableJob( object ):
     
-    def __init__( self, controller, scheduler, initial_delay, work_callable ):
+    PRETTY_CLASS_NAME = 'job base'
+    
+    def __init__( self, controller, scheduler: JobScheduler, initial_delay, work_callable ):
         
         self._controller = controller
         self._scheduler = scheduler
@@ -706,7 +719,7 @@ class SchedulableJob( object ):
     
     def __repr__( self ):
         
-        return repr( self.__class__ ) + ': ' + repr( self._work_callable ) + ' next in ' + HydrusData.TimeDeltaToPrettyTimeDelta( self._next_work_time - HydrusData.GetNowFloat() )
+        return '{}: {} {}'.format( self.PRETTY_CLASS_NAME, self.GetPrettyJob(), self.GetDueString() )
         
     
     def _BootWorker( self ):
@@ -724,6 +737,34 @@ class SchedulableJob( object ):
     def CurrentlyWorking( self ):
         
         return self._currently_working.is_set()
+        
+    
+    def GetDueString( self ):
+        
+        due_delta = self._next_work_time - HydrusData.GetNowFloat()
+        
+        due_string = HydrusData.TimeDeltaToPrettyTimeDelta( due_delta )
+        
+        if due_delta < 0:
+            
+            due_string = 'was due {} ago'.format( due_string )
+            
+        else:
+            
+            due_string = 'due in {}'.format( due_string )
+            
+        
+        return due_string
+        
+    
+    def GetNextWorkTime( self ):
+        
+        return self._next_work_time
+        
+    
+    def GetPrettyJob( self ):
+        
+        return repr( self._work_callable )
         
     
     def GetTimeDeltaUntilDue( self ):
@@ -844,7 +885,9 @@ class SchedulableJob( object ):
     
 class SingleJob( SchedulableJob ):
     
-    def __init__( self, controller, scheduler, initial_delay, work_callable ):
+    PRETTY_CLASS_NAME = 'single job'
+    
+    def __init__( self, controller, scheduler: JobScheduler, initial_delay, work_callable ):
         
         SchedulableJob.__init__( self, controller, scheduler, initial_delay, work_callable )
         
@@ -865,7 +908,9 @@ class SingleJob( SchedulableJob ):
     
 class RepeatingJob( SchedulableJob ):
     
-    def __init__( self, controller, scheduler, initial_delay, period, work_callable ):
+    PRETTY_CLASS_NAME = 'repeating job'
+    
+    def __init__( self, controller, scheduler: JobScheduler, initial_delay, period, work_callable ):
         
         SchedulableJob.__init__( self, controller, scheduler, initial_delay, work_callable )
         
@@ -891,16 +936,6 @@ class RepeatingJob( SchedulableJob ):
     def IsRepeatingWorkFinished( self ):
         
         return self._stop_repeating.is_set()
-        
-    
-    def SetPeriod( self, period ):
-        
-        if period > 10.0:
-            
-            period += random.random() # smooth out future spikes if ten of these all fire at the same time
-            
-        
-        self._period = period
         
     
     def StartWork( self ):

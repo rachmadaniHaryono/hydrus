@@ -1,5 +1,4 @@
 import collections
-import gc
 import os
 import random
 import sys
@@ -13,6 +12,7 @@ from hydrus.core import HydrusGlobals as HG
 from hydrus.core import HydrusPaths
 from hydrus.core import HydrusPubSub
 from hydrus.core import HydrusThreading
+from hydrus.core import HydrusTemp
 from hydrus.core.networking import HydrusNATPunch
 
 class HydrusController( object ):
@@ -54,6 +54,8 @@ class HydrusController( object ):
         self._thread_pool_busy_status_text_new_check_time = 0
         
         self._call_to_thread_lock = threading.Lock()
+        
+        self._timestamps_lock = threading.Lock()
         
         self._timestamps = collections.defaultdict( lambda: 0 )
         
@@ -159,7 +161,7 @@ class HydrusController( object ):
     
     def _InitTempDir( self ):
         
-        self.temp_dir = HydrusPaths.GetTempDir()
+        self.temp_dir = HydrusTemp.GetTempDir()
         
     
     def _MaintainCallToThreads( self ):
@@ -424,7 +426,7 @@ class HydrusController( object ):
     
     def GetBootTime( self ):
         
-        return self._timestamps[ 'boot' ]
+        return self.GetTimestamp( 'boot' )
         
     
     def GetDBDir( self ):
@@ -440,6 +442,20 @@ class HydrusController( object ):
     def GetCache( self, name ):
         
         return self._caches[ name ]
+        
+    
+    def GetJobSchedulerSnapshot( self, scheduler_name ):
+        
+        if scheduler_name == 'fast':
+            
+            scheduler = self._fast_job_scheduler
+            
+        else:
+            
+            scheduler = self._slow_job_scheduler
+            
+        
+        return scheduler.GetJobs()
         
     
     def GetManager( self, name ):
@@ -491,6 +507,14 @@ class HydrusController( object ):
         threads.append( self._fast_job_scheduler )
         
         return threads
+        
+    
+    def GetTimestamp( self, name: str ) -> str:
+        
+        with self._timestamps_lock:
+            
+            return self._timestamps[ name ]
+            
         
     
     def GoodTimeToStartBackgroundWork( self ):
@@ -595,18 +619,16 @@ class HydrusController( object ):
     
     def MaintainMemorySlow( self ):
         
-        gc.collect()
-        
-        HydrusPaths.CleanUpOldTempPaths()
+        HydrusTemp.CleanUpOldTempPaths()
         
         self._MaintainCallToThreads()
         
     
-    def PrintProfile( self, summary, profile_text ):
+    def PrintProfile( self, summary, profile_text = None ):
         
-        boot_pretty_timestamp = time.strftime( '%Y-%m-%d %H-%M-%S', time.localtime( self._timestamps[ 'boot' ] ) )
+        pretty_timestamp = time.strftime( '%Y-%m-%d %H-%M-%S', time.localtime( HG.profile_start_time ) )
         
-        profile_log_filename = self._name + ' profile - ' + boot_pretty_timestamp + '.log'
+        profile_log_filename = '{} profile - {}.log'.format( self._name, pretty_timestamp )
         
         profile_log_path = os.path.join( self.db_dir, profile_log_filename )
         
@@ -615,8 +637,54 @@ class HydrusController( object ):
             prefix = time.strftime( '%Y/%m/%d %H:%M:%S: ' )
             
             f.write( prefix + summary )
+            
+            if profile_text is not None:
+                
+                f.write( os.linesep * 2 )
+                f.write( profile_text )
+                
+            
+        
+    
+    def PrintQueryPlan( self, query, plan_lines ):
+        
+        if query in HG.queries_planned:
+            
+            return
+            
+        
+        HG.queries_planned.add( query )
+        
+        pretty_timestamp = time.strftime( '%Y-%m-%d %H-%M-%S', time.localtime( HG.query_planner_start_time ) )
+        
+        query_planner_log_filename = '{} query planner - {}.log'.format( self._name, pretty_timestamp )
+        
+        query_planner_log_path = os.path.join( self.db_dir, query_planner_log_filename )
+        
+        with open( query_planner_log_path, 'a', encoding = 'utf-8' ) as f:
+            
+            prefix = time.strftime( '%Y/%m/%d %H:%M:%S: ' )
+            
+            if ' ' in query:
+                
+                first_word = query.split( ' ', 1 )[0]
+                
+            else:
+                
+                first_word = 'unknown'
+                
+            
+            f.write( prefix + first_word )
+            f.write( os.linesep )
+            f.write( query )
+            
+            if len( plan_lines ) > 0:
+                
+                f.write( os.linesep )
+                f.write( os.linesep.join( ( str( p ) for p in plan_lines ) ) )
+                
+            
             f.write( os.linesep * 2 )
-            f.write( profile_text )
             
         
     
@@ -661,12 +729,20 @@ class HydrusController( object ):
     
     def ResetIdleTimer( self ):
         
-        self._timestamps[ 'last_user_action' ] = HydrusData.GetNow()
+        self.TouchTimestamp( 'last_user_action' )
         
     
     def SetDoingFastExit( self, value: bool ):
         
         self._doing_fast_exit = value
+        
+    
+    def SetTimestamp( self, name: str, value: int ):
+        
+        with self._timestamps_lock:
+            
+            self._timestamps[ name ] = value
+            
         
     
     def ShouldStopThisWork( self, maintenance_mode, stop_time = None ):
@@ -764,7 +840,7 @@ class HydrusController( object ):
         
         with self._sleep_lock:
             
-            if HydrusData.TimeHasPassed( self._timestamps[ 'last_sleep_check' ] + 60 ): # it has been way too long since this method last fired, so we've prob been asleep
+            if HydrusData.TimeHasPassed( self.GetTimestamp( 'last_sleep_check' ) + 60 ): # it has been way too long since this method last fired, so we've prob been asleep
                 
                 self._just_woke_from_sleep = True
                 
@@ -772,16 +848,16 @@ class HydrusController( object ):
                 
                 wake_delay_period = self._GetWakeDelayPeriod()
                 
-                self._timestamps[ 'now_awake' ] = HydrusData.GetNow() + wake_delay_period # enough time for ethernet to get back online and all that
+                self.SetTimestamp( 'now_awake', HydrusData.GetNow() + wake_delay_period ) # enough time for ethernet to get back online and all that
                 
                 self._ShowJustWokeToUser()
                 
-            elif self._just_woke_from_sleep and HydrusData.TimeHasPassed( self._timestamps[ 'now_awake' ] ):
+            elif self._just_woke_from_sleep and HydrusData.TimeHasPassed( self.GetTimestamp( 'now_awake' ) ):
                 
                 self._just_woke_from_sleep = False
                 
             
-            self._timestamps[ 'last_sleep_check' ] = HydrusData.GetNow()
+            self.TouchTimestamp( 'last_sleep_check' )
             
         
     
@@ -789,7 +865,7 @@ class HydrusController( object ):
         
         with self._sleep_lock:
             
-            self._timestamps[ 'last_sleep_check' ] = HydrusData.GetNow() - 3600
+            self.SetTimestamp( 'last_sleep_check', HydrusData.GetNow() - 3600 )
             
         
         self.SleepCheck()
@@ -798,6 +874,14 @@ class HydrusController( object ):
     def SystemBusy( self ):
         
         return self._system_busy
+        
+    
+    def TouchTimestamp( self, name: str ):
+        
+        with self._timestamps_lock:
+            
+            self._timestamps[ name ] = HydrusData.GetNow()
+            
         
     
     def WaitUntilDBEmpty( self ):
@@ -828,15 +912,11 @@ class HydrusController( object ):
     
     def WaitUntilPubSubsEmpty( self ):
         
-        while True:
+        while self.CurrentlyPubSubbing():
             
             if HG.model_shutdown:
                 
                 raise HydrusExceptions.ShutdownException( 'Application shutting down!' )
-                
-            elif not self.CurrentlyPubSubbing():
-                
-                return
                 
             else:
                 

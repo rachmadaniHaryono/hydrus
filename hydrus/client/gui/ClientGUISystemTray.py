@@ -139,14 +139,9 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
     
     def _UpdateTooltip( self ):
         
-        title = HG.client_controller.new_options.GetString( 'main_gui_title' )
+        app_display_name = HG.client_controller.new_options.GetString( 'app_display_name' )
         
-        if title is None or title == '':
-            
-            title = 'hydrus client'
-            
-        
-        tooltip = title
+        tooltip = app_display_name
         
         if self._network_traffic_paused:
             
@@ -165,6 +160,11 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
         
     
     def _WasActivated( self, activation_reason ):
+        
+        if not QP.isValid( self ):
+            
+            return
+            
         
         if activation_reason in ( QW.QSystemTrayIcon.Unknown, QW.QSystemTrayIcon.Trigger ):
             

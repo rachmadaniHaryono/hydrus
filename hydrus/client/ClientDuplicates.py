@@ -156,7 +156,7 @@ class DuplicatesManager( object ):
             
             job_key = ClientThreading.JobKey( cancellable = True )
             
-            job_key.SetVariable( 'popup_title', 'searching for potential duplicates' )
+            job_key.SetStatusTitle( 'searching for potential duplicates' )
             
             HG.client_controller.pub( 'message', job_key )
             
@@ -166,9 +166,32 @@ class DuplicatesManager( object ):
                 
                 search_distance = HG.client_controller.new_options.GetInteger( 'similar_files_duplicate_pairs_search_distance' )
                 
+                start_time = HydrusData.GetNowPrecise()
+                
                 ( still_work_to_do, num_done ) = HG.client_controller.WriteSynchronous( 'maintain_similar_files_search_for_potential_duplicates', search_distance, maintenance_mode = HC.MAINTENANCE_FORCED, job_key = job_key, work_time_float = 0.5 )
                 
+                time_it_took = HydrusData.GetNowPrecise() - start_time
+                
                 num_searched_estimate += num_done
+                
+                if num_searched_estimate > total_num_files:
+                    
+                    similar_files_maintenance_status = HG.client_controller.Read( 'similar_files_maintenance_status' )
+                    
+                    if similar_files_maintenance_status is None:
+                        
+                        break
+                        
+                    
+                    with self._lock:
+                        
+                        self._similar_files_maintenance_status = similar_files_maintenance_status
+                        
+                        searched_distances_to_count = self._similar_files_maintenance_status
+                        
+                        total_num_files = max( num_searched_estimate, sum( searched_distances_to_count.values() ) )
+                        
+                    
                 
                 text = 'searching: {}'.format( HydrusData.ConvertValueRangeToPrettyString( num_searched_estimate, total_num_files ) )
                 job_key.SetVariable( 'popup_text_1', text )
@@ -179,7 +202,7 @@ class DuplicatesManager( object ):
                     break
                     
                 
-                time.sleep( 0.5 )
+                time.sleep( min( 5, time_it_took ) ) # ideally 0.5s, but potentially longer
                 
             
             job_key.Delete()
@@ -528,7 +551,14 @@ class DuplicateActionOptions( HydrusSerialisable.SerialisableBase ):
                 
             
         
+        delete_lock_for_archived_files = HG.client_controller.new_options.GetBoolean( 'delete_lock_for_archived_files' )
+        
         for media in deletee_media:
+            
+            if delete_lock_for_archived_files and not media.HasInbox():
+                
+                continue
+                
             
             if media.GetLocationsManager().IsTrashed():
                 
