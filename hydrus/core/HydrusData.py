@@ -246,7 +246,11 @@ def ConvertPrettyStringsToUglyNamespaces( pretty_strings ):
     
 def ConvertResolutionToPrettyString( resolution ):
     
-    if resolution in HC.NICE_RESOLUTIONS:
+    try:
+        cond = resolution in HC.NICE_RESOLUTIONS
+    except TypeError:
+        cond = tuple(resolution) in HC.NICE_RESOLUTIONS
+    if cond:
         
         return HC.NICE_RESOLUTIONS[ resolution ]
         
