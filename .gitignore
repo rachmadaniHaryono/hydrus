@@ -52,3 +52,7 @@ db/missing_and_invalid_files/
 db/client_running
 db/original_20180314/
 hydrus-332-api.patch
+
+# docs builds
+site/
+help/
