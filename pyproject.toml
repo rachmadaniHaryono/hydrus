@@ -1,0 +1,55 @@
+[tool.poetry]
+name = "hydrus"
+version = "474.0.0"
+description = "A personal booru-style media tagger that can import files and tags from your hard drive and popular websites"
+authors = ["Hydrus Network Developer <hydrus.admin@gmail.com>"]
+license = "WTFPL"
+include = [
+  "bin/**/*",
+  "db/**/*",
+  "help/**/*",
+  "static/**/*",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+beautifulsoup4 = ">=4.0.0"
+chardet = ">=3.0.4"
+cloudscraper = ">=1.2.33"
+html5lib = ">=1.0.1"
+lxml = ">=4.5.0"
+lz4 = ">=3.0.0"
+nose = ">=1.3.0"
+numpy = ">=1.16.0"
+Pillow = ">=6.0.0"
+psutil = ">=5.0.0"
+pylzma = ">=0.5.0"
+pyOpenSSL = ">=19.1.0"
+PySocks = ">=1.7.0"
+python-mpv = "0.5.2"
+PyYAML = ">=5.0.0"
+QtPy = ">=1.9.0"
+requests = "2.23.0"
+Send2Trash = ">=1.5.0"
+service-identity = ">=18.1.0"
+six = ">=1.14.0"
+Twisted = ">=20.3.0"
+opencv-python-headless = ">=4.0.0,<=4.5.3.56"
+PySide2 = ">=5.15.0"
+
+[tool.poetry.dev-dependencies]
+mkdocs-material = "^8.2.2"
+httmock = ">=1.4.0"
+mock = ">=4.0.0"
+pywin32 = {version = "^303", platform = "win32"}
+pypiwin32 = {version = "^223", platform = "win32"}
+pywin32-ctypes = {version = "^0.2.0", platform = "win32"}
+pyinstaller = "4.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+hydrus-server = 'hydrus.hydrus_server:boot'
+hydrus-client = 'hydrus.hydrus_client:boot'
