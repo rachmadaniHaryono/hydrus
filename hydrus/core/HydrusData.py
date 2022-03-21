@@ -9,7 +9,6 @@ import pstats
 import psutil
 import random
 import re
-import sqlite3
 import struct
 import subprocess
 import sys
@@ -327,6 +326,12 @@ def TimeDeltaToPrettyTimeDelta( seconds, show_seconds = True ):
             
             seconds %= duration
             
+            # little rounding thing if you get 364th day with 30 day months
+            if time_string == 'month' and time_quantity > 11:
+                
+                time_quantity = 11
+                
+            
             if time_quantity > 0:
                 
                 s = ToHumanInt( time_quantity ) + ' ' + time_string
@@ -598,7 +603,7 @@ def DebugPrint( debug_info ):
     sys.stdout.flush()
     sys.stderr.flush()
     
-def DedupeList( xs ):
+def DedupeList( xs: typing.Iterable ):
     
     xs_seen = set()
     
@@ -1886,6 +1891,12 @@ class ContentUpdate( object ):
         elif self._data_type == HC.CONTENT_TYPE_URLS:
             
             ( urls, hashes ) = self._row
+            
+        elif self._data_type == HC.CONTENT_TYPE_TIMESTAMP:
+            
+            ( timestamp_type, hash, data ) = self._row
+            
+            hashes = { hash }
             
         elif self._data_type == HC.CONTENT_TYPE_MAPPINGS:
             

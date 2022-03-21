@@ -34,10 +34,11 @@ from hydrus.client import ClientRendering
 from hydrus.client import ClientSearch
 from hydrus.client import ClientSerialisable
 from hydrus.client import ClientThreading
-from hydrus.client.gui import ClientGUIDragDrop
 from hydrus.client.gui import ClientGUIAsync
+from hydrus.client.gui import ClientGUICharts
 from hydrus.client.gui import ClientGUIDialogs
 from hydrus.client.gui import ClientGUIDialogsQuick
+from hydrus.client.gui import ClientGUIDragDrop
 from hydrus.client.gui import ClientGUIFunctions
 from hydrus.client.gui import ClientGUIImport
 from hydrus.client.gui import ClientGUIScrolledPanels
@@ -181,7 +182,16 @@ class MigrateDatabasePanel( ClientGUIScrolledPanels.ReviewPanel ):
     
     def _AddPath( self, path, starting_weight = 1 ):
         
-        path = os.path.realpath( path )
+        try:
+            
+            path = os.path.realpath( path )
+            
+        except OSError as e:
+            
+            HydrusData.PrintException( e )
+            
+            QW.QMessageBox.warning( self, 'Warning', 'I tried to remove symlinks from this path, but that failed! If this path is a clever mount, this situation may be ok. I will let you continue, and if the path looks ok and you are confident you can read from and write to it, you can continue. I recommend you close the client and make a backup right now though. The full error has been printed to log.' )
+            
         
         if path in self._locations_to_ideal_weights:
             
@@ -805,7 +815,16 @@ class MigrateDatabasePanel( ClientGUIScrolledPanels.ReviewPanel ):
                 
                 path = dlg.GetPath()
                 
-                path = os.path.realpath( path )
+                try:
+                    
+                    path = os.path.realpath( path )
+                    
+                except OSError as e:
+                    
+                    HydrusData.PrintException( e )
+                    
+                    QW.QMessageBox.warning( self, 'Warning', 'I tried to remove symlinks from this path, but that failed! If this path is a clever mount, this situation may be ok. I will let you continue, and if the path looks ok and you are confident you can read from and write to it, you can continue. I recommend you close the client and make a backup right now though. The full error has been printed to log.' )
+                    
                 
                 if path in self._locations_to_ideal_weights:
                     
@@ -2267,6 +2286,32 @@ class ReviewDownloaderImport( ClientGUIScrolledPanels.ReviewPanel ):
     def ImportFromDragDrop( self, paths ):
         
         self._ImportPaths( paths )
+        
+    
+class ReviewFileHistory( ClientGUIScrolledPanels.ReviewPanel ):
+    
+    def __init__( self, parent, file_history ):
+        
+        ClientGUIScrolledPanels.ReviewPanel.__init__( self, parent )
+        
+        file_history_chart = ClientGUICharts.FileHistory( self, file_history )
+        
+        file_history_chart.setMinimumSize( 640, 480 )
+        
+        vbox = QP.VBoxLayout()
+        
+        label = 'Please note that delete and inbox time tracking are new so you may not have full data for them.'
+        
+        st = ClientGUICommon.BetterStaticText( self, label = label )
+        
+        st.setWordWrap( True )
+        st.setAlignment( QC.Qt.AlignCenter )
+        
+        QP.AddToLayout( vbox, st, CC.FLAGS_EXPAND_PERPENDICULAR )
+        
+        QP.AddToLayout( vbox, file_history_chart, CC.FLAGS_EXPAND_BOTH_WAYS )
+        
+        self.widget().setLayout( vbox )
         
     
 class ReviewFileMaintenance( ClientGUIScrolledPanels.ReviewPanel ):

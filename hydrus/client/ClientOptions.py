@@ -149,6 +149,7 @@ class ClientOptions( HydrusSerialisable.SerialisableBase ):
         self._dictionary[ 'booleans' ][ 'maintain_similar_files_duplicate_pairs_during_idle' ] = False
         
         self._dictionary[ 'booleans' ][ 'show_namespaces' ] = True
+        self._dictionary[ 'booleans' ][ 'show_number_namespaces' ] = True
         self._dictionary[ 'booleans' ][ 'replace_tag_underscores_with_spaces' ] = False
         
         self._dictionary[ 'booleans' ][ 'verify_regular_https' ] = True
@@ -173,6 +174,7 @@ class ClientOptions( HydrusSerialisable.SerialisableBase ):
         self._dictionary[ 'booleans' ][ 'tag_display_maintenance_during_active' ] = True
         
         self._dictionary[ 'booleans' ][ 'save_page_sort_on_change' ] = False
+        self._dictionary[ 'booleans' ][ 'force_hide_page_signal_on_new_page' ] = False
         
         self._dictionary[ 'booleans' ][ 'pause_all_new_network_traffic' ] = False
         self._dictionary[ 'booleans' ][ 'boot_with_network_traffic_paused' ] = False

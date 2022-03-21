@@ -492,6 +492,7 @@ class Page( QW.QSplitter ):
         self._media_panel.refreshQuery.connect( self.RefreshQuery )
         self._media_panel.focusMediaChanged.connect( self._preview_canvas.SetMedia )
         self._media_panel.focusMediaCleared.connect( self._preview_canvas.ClearMedia )
+        self._media_panel.focusMediaPaused.connect( self._preview_canvas.PauseMedia )
         self._media_panel.statusTextChanged.connect( self._SetPrettyStatus )
         
         self._management_panel.ConnectMediaPanelSignals( self._media_panel )
@@ -2939,7 +2940,6 @@ class PagesNotebook( QP.TabWidgetWithDnD ):
             return False
             
         
-        current_index = self.currentIndex()
         current_page = self.currentWidget()
         
         if isinstance( current_page, PagesNotebook ):
@@ -3051,6 +3051,16 @@ class PagesNotebook( QP.TabWidgetWithDnD ):
         
         # in some unusual circumstances, this gets out of whack
         insertion_index = min( insertion_index, self.count() )
+        
+        if self._controller.new_options.GetBoolean( 'force_hide_page_signal_on_new_page' ):
+            
+            current_gui_page = self._controller.gui.GetCurrentPage()
+            
+            if current_gui_page is not None:
+                
+                current_gui_page.PageHidden()
+                
+            
         
         self.insertTab( insertion_index, page, page_name )
         
@@ -3422,4 +3432,3 @@ class PagesNotebook( QP.TabWidgetWithDnD ):
         
         pass
         
-    

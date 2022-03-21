@@ -23,6 +23,7 @@ from hydrus.core import HydrusTemp
 from hydrus.client import ClientConstants as CC
 from hydrus.client import ClientData
 from hydrus.client import ClientParsing
+from hydrus.client import ClientTime
 from hydrus.client.importing import ClientImportFiles
 from hydrus.client.importing import ClientImporting
 from hydrus.client.importing.options import FileImportOptions
@@ -473,6 +474,10 @@ class FileSeed( HydrusSerialisable.SerialisableBase ):
                         
                     
                 
+            
+            last_modified_time = network_job.GetLastModifiedTime()
+            
+            self.source_time = ClientTime.MergeModifiedTimes( self.source_time, last_modified_time )
             
             status_hook( 'importing file' )
             
@@ -1487,6 +1492,21 @@ class FileSeed( HydrusSerialisable.SerialisableBase ):
                     
                     potentially_associable_urls.add( self.file_seed_data )
                     
+                    domain = ClientNetworkingFunctions.ConvertURLIntoDomain( self.file_seed_data )
+                    
+                    if self.source_time is None:
+                        
+                        domain_modified_timestamp = self.created
+                        
+                    else:
+                        
+                        domain_modified_timestamp = self.source_time
+                        
+                    
+                    content_update = HydrusData.ContentUpdate( HC.CONTENT_TYPE_TIMESTAMP, HC.CONTENT_UPDATE_ADD, ( 'domain', hash, ( domain, domain_modified_timestamp ) ) )
+                    
+                    service_keys_to_content_updates[ CC.COMBINED_LOCAL_FILE_SERVICE_KEY ].append( content_update )
+                    
                 
                 if self._referral_url is not None:
                     
@@ -1914,7 +1934,7 @@ class FileSeedCache( HydrusSerialisable.SerialisableBase ):
         return self._file_seeds.GetSerialisableTuple()
         
     
-    def _GetSourceTimestamp( self, file_seed: FileSeed ):
+    def _GetSourceTimestampForVelocityCalculations( self, file_seed: FileSeed ):
         
         source_timestamp = file_seed.source_time
         
@@ -2296,7 +2316,7 @@ class FileSeedCache( HydrusSerialisable.SerialisableBase ):
                     continue
                     
                 
-                if self._GetSourceTimestamp( file_seed ) < compact_before_this_source_time:
+                if self._GetSourceTimestampForVelocityCalculations( file_seed ) < compact_before_this_source_time:
                     
                     return True
                     
@@ -2320,7 +2340,7 @@ class FileSeedCache( HydrusSerialisable.SerialisableBase ):
             for file_seed in self._file_seeds[:-self.COMPACT_NUMBER]:
                 
                 still_to_do = file_seed.status == CC.STATUS_UNKNOWN
-                still_relevant = self._GetSourceTimestamp( file_seed ) > compact_before_this_source_time
+                still_relevant = self._GetSourceTimestampForVelocityCalculations( file_seed ) > compact_before_this_source_time
                 
                 if still_to_do or still_relevant:
                     
@@ -2405,7 +2425,7 @@ class FileSeedCache( HydrusSerialisable.SerialisableBase ):
                 return None
                 
             
-            earliest_timestamp = min( ( self._GetSourceTimestamp( file_seed ) for file_seed in self._file_seeds ) )
+            earliest_timestamp = min( ( self._GetSourceTimestampForVelocityCalculations( file_seed ) for file_seed in self._file_seeds ) )
             
         
         return earliest_timestamp
@@ -2513,7 +2533,7 @@ class FileSeedCache( HydrusSerialisable.SerialisableBase ):
                 return 0
                 
             
-            latest_timestamp = max( ( self._GetSourceTimestamp( file_seed ) for file_seed in self._file_seeds ) )
+            latest_timestamp = max( ( self._GetSourceTimestampForVelocityCalculations( file_seed ) for file_seed in self._file_seeds ) )
             
         
         return latest_timestamp
@@ -2535,7 +2555,7 @@ class FileSeedCache( HydrusSerialisable.SerialisableBase ):
             
             for file_seed in self._file_seeds:
                 
-                source_timestamp = self._GetSourceTimestamp( file_seed )
+                source_timestamp = self._GetSourceTimestampForVelocityCalculations( file_seed )
                 
                 if source_timestamp >= since:
                     

@@ -44,6 +44,7 @@ from hydrus.client import ClientPaths
 from hydrus.client import ClientServices
 from hydrus.client import ClientThreading
 from hydrus.client.gui import ClientGUIAsync
+from hydrus.client.gui import ClientGUICharts
 from hydrus.client.gui import ClientGUICore as CGC
 from hydrus.client.gui import ClientGUIDialogs
 from hydrus.client.gui import ClientGUIDialogsManage
@@ -687,6 +688,18 @@ class FrameGUI( ClientGUITopLevelWindows.MainFrameThatResizes ):
             library_versions.append( ( 'PyQt5', PYQT_VERSION_STR ) )
             library_versions.append( ( 'sip', SIP_VERSION_STR ) )
             
+        CBOR_AVAILABLE = False
+        
+        try:
+            
+            import cbor2
+            CBOR_AVAILABLE = True
+            
+        except:
+            
+            pass
+        
+        library_versions.append( ( 'cbor2 present: ', str( CBOR_AVAILABLE ) ) )
         
         from hydrus.client.networking import ClientNetworkingJobs
         
@@ -2133,6 +2146,7 @@ class FrameGUI( ClientGUITopLevelWindows.MainFrameThatResizes ):
         self._menu_updater_pages_count = ClientGUIAsync.FastThreadToGUIUpdater( self, self._UpdateMenuPagesCount )
         
         self._boned_updater = self._InitialiseMenubarGetBonesUpdater()
+        self._file_history_updater = self._InitialiseMenubarGetFileHistoryUpdater()
         
         self.setMenuBar( self._menubar )
         
@@ -2240,6 +2254,44 @@ class FrameGUI( ClientGUITopLevelWindows.MainFrameThatResizes ):
             frame = ClientGUITopLevelWindowsPanels.FrameThatTakesScrollablePanel( self, 'review your fate' )
             
             panel = ClientGUIScrolledPanelsReview.ReviewHowBonedAmI( frame, boned_stats )
+            
+            frame.SetPanel( panel )
+            
+        
+        return ClientGUIAsync.AsyncQtUpdater( self, loading_callable, work_callable, publish_callable )
+        
+    
+    def _InitialiseMenubarGetFileHistoryUpdater( self ):
+        
+        def loading_callable():
+            
+            pass
+            
+        
+        def work_callable():
+            
+            job_key = ClientThreading.JobKey()
+            
+            job_key.SetVariable( 'popup_text_1', 'Loading File History\u2026' )
+            
+            HG.client_controller.pub( 'message', job_key )
+            
+            num_steps = 1000
+            
+            file_history = HG.client_controller.Read( 'file_history', num_steps )
+            
+            return ( job_key, file_history )
+            
+        
+        def publish_callable( result ):
+            
+            ( job_key, file_history ) = result
+            
+            job_key.Delete()
+            
+            frame = ClientGUITopLevelWindowsPanels.FrameThatTakesScrollablePanel( self, 'file history' )
+            
+            panel = ClientGUIScrolledPanelsReview.ReviewFileHistory( frame, file_history )
             
             frame.SetPanel( panel )
             
@@ -3067,11 +3119,11 @@ class FrameGUI( ClientGUITopLevelWindows.MainFrameThatResizes ):
         
         menu = QW.QMenu( self )
         
-        ClientGUIMenus.AppendMenuItem( menu, 'help and getting started guide', 'Open hydrus\'s local help in your web browser.', ClientPaths.LaunchPathInWebBrowser, os.path.join( HC.HELP_DIR, 'index.html' ) )
+        ClientGUIMenus.AppendMenuItem( menu, 'help and getting started guide', 'Open hydrus\'s local help in your web browser.', self._OpenHelp )
         
         links = QW.QMenu( menu )
         
-        site = ClientGUIMenus.AppendMenuBitmapItem( links, 'site', 'Open hydrus\'s website, which is mostly a mirror of the local help.', CC.global_pixmaps().file_repository, ClientPaths.LaunchURLInWebBrowser, 'https://hydrusnetwork.github.io/hydrus/' )
+        site = ClientGUIMenus.AppendMenuBitmapItem( links, 'site', 'Open hydrus\'s website, which is a mirror of the local help.', CC.global_pixmaps().file_repository, ClientPaths.LaunchURLInWebBrowser, 'https://hydrusnetwork.github.io/hydrus/' )
         site = ClientGUIMenus.AppendMenuBitmapItem( links, 'github repository', 'Open the hydrus github repository.', CC.global_pixmaps().github, ClientPaths.LaunchURLInWebBrowser, 'https://github.com/hydrusnetwork/hydrus' )
         site = ClientGUIMenus.AppendMenuBitmapItem( links, 'latest build', 'Open the latest build on the hydrus github repository.', CC.global_pixmaps().github, ClientPaths.LaunchURLInWebBrowser, 'https://github.com/hydrusnetwork/hydrus/releases/latest' )
         site = ClientGUIMenus.AppendMenuBitmapItem( links, 'issue tracker', 'Open the github issue tracker, which is run by users.', CC.global_pixmaps().github, ClientPaths.LaunchURLInWebBrowser, 'https://github.com/hydrusnetwork/hydrus/issues' )
@@ -3093,6 +3145,7 @@ class FrameGUI( ClientGUITopLevelWindows.MainFrameThatResizes ):
         ClientGUIMenus.AppendSeparator( menu )
         
         ClientGUIMenus.AppendMenuItem( menu, 'how boned am I?', 'Check for a summary of your ride so far.', self._HowBonedAmI )
+        ClientGUIMenus.AppendMenuItem( menu, 'view file history', 'See a chart of your file import history.', self._ShowFileHistory )
         
         ClientGUIMenus.AppendSeparator( menu )
         
@@ -4727,6 +4780,47 @@ class FrameGUI( ClientGUITopLevelWindows.MainFrameThatResizes ):
             
         
     
+    def _OpenHelp( self ):
+        
+        help_path = os.path.join( HC.HELP_DIR, 'index.html' )
+        
+        if os.path.exists( help_path ):
+            
+            ClientPaths.LaunchPathInWebBrowser( help_path )
+            
+        else:
+            
+            message = 'You do not have a local help! Are you running from source? Would you like to open the online help or see a guide on how to build your own?'
+            
+            yes_tuples = []
+            
+            yes_tuples.append( ( 'open online help', 0 ) )
+            yes_tuples.append( ( 'open how to build guide', 1 ) )
+            
+            with ClientGUIDialogs.DialogYesYesNo( self, message, yes_tuples = yes_tuples, no_label = 'forget it' ) as dlg:
+                
+                if dlg.exec() == QW.QDialog.Accepted:
+                    
+                    value = dlg.GetValue()
+                    
+                    if value == 0:
+                        
+                        url = 'https://hydrusnetwork.github.io/hydrus/'
+                        
+                    elif value == 1:
+                        
+                        url = 'https://hydrusnetwork.github.io/hydrus/about_docs.html'
+                        
+                    else:
+                        
+                        return
+                        
+                    ClientPaths.LaunchURLInWebBrowser( url )
+                    
+                
+            
+        
+    
     def _OpenInstallFolder( self ):
         
         HydrusPaths.LaunchDirectory( HC.BASE_DIR )
@@ -6113,6 +6207,20 @@ The password is cleartext here but obscured in the entry dialog. Enter a blank p
                     
                 
             
+        
+    
+    def _ShowFileHistory( self ):
+        
+        if not ClientGUICharts.QT_CHARTS_OK:
+            
+            message = 'Sorry, you do not have QtCharts available, so this chart cannot be shown!'
+            
+            QW.QMessageBox.warning( self, 'Warning', message )
+            
+            return
+            
+        
+        self._file_history_updater.update()
         
     
     def _ShowHideSplitters( self ):
@@ -7908,7 +8016,7 @@ The password is cleartext here but obscured in the entry dialog. Enter a blank p
                             
                             if HG.client_controller.IsFirstStart():
                                 
-                                text += 'Since this is your first session, this maintenance should should just be some quick initialisation work. It should only take a few seconds.'
+                                text += 'Since this is your first session, this maintenance should just be some quick initialisation work. It should only take a few seconds.'
                                 text += os.linesep * 2
                                 
                             

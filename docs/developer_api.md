@@ -7,8 +7,9 @@ hide: navigation
 
 ## Library modules created by hydrus users
 
-*   [Hydrus API](https://gitlab.com/cryzed/hydrus-api): A python module that talks to the API.
-*   [hydrus.js](https://github.com/cravxx/hydrus.js): A node.js module that talks to the API.
+* [Hydrus API](https://gitlab.com/cryzed/hydrus-api): A python module that talks to the API.
+* [hydrus.js](https://github.com/cravxx/hydrus.js): A node.js module that talks to the API.
+* [more projects on github](https://github.com/stars/hydrusnetwork/lists/hydrus-related-projects)
 
 ## API
 
@@ -46,6 +47,31 @@ In general, the API deals with standard UTF-8 JSON. POST requests and 200 OK res
     
 
 On 200 OK, the API returns JSON for everything except actual file/thumbnail requests. On 4XX and 5XX, assume it will return plain text, which may be a raw traceback that I'd be interested in seeing. You'll typically get 400 for a missing parameter, 401/403/419 for missing/insufficient/expired access, and 500 for a real deal serverside error.
+
+!!! note
+    For any request sent to the API, the total size of the initial request line (this includes the URL and any parameters) and the headers must not be larger than 2 megabytes.
+    Exceeding this limit will cause the request to fail. Make sure to use pagination if you are passing very large JSON arrays as parameters in a GET request.
+    
+
+## CBOR
+
+The API now tentatively supports CBOR, which is basically 'byte JSON'. If you are in a lower level language or need to do a lot of heavy work quickly, try it out!
+
+To work in CBOR, use CBOR to encode any parameters that you would previously put in JSON, and put Content-Type `application/cbor` in your request header. For POST requests, just print the pure bytes in the body, like this:
+
+```py
+cbor2.dumps( arg_dict )
+```
+
+For GET, encode the parameter value in base64, like this:
+
+```py
+base64.urlsafe_b64encode( cbor2.dumps( argument ) )
+
+-or-
+
+str( base64.urlsafe_b64encode( cbor2.dumps( argument ) ), 'ascii' )
+```
 
 ## Access and permissions
 
@@ -451,7 +477,56 @@ Response:
 
     !!! note
         A user can rename their services. Don't assume the client's local tags service will be "my tags".
-    
+
+### **GET `/add_tags/search_tags`** { id="add_tags_search_tags" }
+
+_Search the client for tags._
+
+Restricted access:
+:   YES. Search for Files permission needed.
+
+Required Headers: n/a
+
+Arguments:
+:   
+* `search`: (the tag text to search for, enter exactly what you would in the client UI)
+* `tag_service_key`: (optional, selective, hexadecimal, the tag domain on which to search)
+* `tag_service_name`: (optional, selective, string, the tag domain on which to search)
+
+Example request:
+:   
+```http title="Example request"
+/add_tags/search_tags?search=kim
+```
+
+Response:
+:   Some JSON listing the client's matching tags.
+
+:   
+```json title="Example response"
+{
+  "tags": [
+    {
+      "value": "series:kim possible", 
+      "count": 3
+    },
+    {
+      "value": "kimchee", 
+      "count": 2
+    },
+    {
+      "value": "character:kimberly ann possible", 
+      "count": 1
+    }
+  ]
+}
+```
+
+The `tags` list will be sorted by descending count. If you do not specify a tag service, it will default to 'all known tags'. The various rules in _tags->manage tag display and search_ (e.g. no pure `*` searches on certain services) will also be checked--and if violated, you will get 200 OK but an empty result.
+
+Note that if your client api access is only allowed to search certain tags, the results will be similarly filtered.
+
+Also, for now, it gives you the 'storage' tags, which are the 'raw' ones you see in the manage tags dialog, without collapsed siblings, but more options will be added in future.
 
 ### **POST `/add_tags/add_tags`** { id="add_tags_add_tags" }
 
@@ -750,6 +825,67 @@ Arguments (in JSON):
 Response: 
 :   200 with no content. Like when adding tags, this is safely idempotent--do not worry about re-adding URLs associations that already exist or accidentally trying to delete ones that don't.
     
+
+## Adding Notes
+
+### **POST `/add_notes/set_notes`** { id="add_notes_set_notes" }
+
+_Add or update notes associated with a file._
+
+Restricted access: 
+:   YES. Add Notes permission needed.
+    
+Required Headers:
+:       
+    *   `Content-Type`: `application/json`
+    
+Arguments (in percent-encoded JSON):
+:   
+*   `notes`: a dictionary mapping note names to note contents
+*   `hash`: the SHA256 of the target file
+*   `file_id`: the identifier of the target file (an integer)
+
+    You must provide one of `hash` or `file_id`. Existing notes will be overwritten.
+```json title="Example request body"
+{
+  "notes": {
+      "note name": "content of note",
+      "another note": "asdf"
+  },
+  "hash": "3b820114f658d768550e4e3d4f1dced3ff8db77443472b5ad93700647ad2d3ba"
+}
+```
+
+Response: 
+:   200 with no content. This operation is idempotent.
+
+### **POST `/add_notes/delete_notes`** { id="add_notes_delete_notes" }
+
+_Remove notes associated with a file._
+
+Restricted access: 
+:   YES. Add Notes permission needed.
+    
+Required Headers:
+:       
+    *   `Content-Type`: `application/json`
+    
+Arguments (in percent-encoded JSON):
+:   
+*   `note_names`: a list of note names to delete
+*   `hash`: the SHA256 of the target file
+*   `file_id`: the identifier of the target file (an integer)
+
+    You must provide one of `hash` or `file_id`.
+```json title="Example request body"
+{
+  "note_names": ["note name", "another note"],
+  "hash": "3b820114f658d768550e4e3d4f1dced3ff8db77443472b5ad93700647ad2d3ba"
+}
+```
+
+Response: 
+:   200 with no content. This operation is idempotent.
 
 ## Managing Cookies and HTTP Headers
 
@@ -1179,6 +1315,14 @@ Arguments (in percent-encoded JSON):
         *   system:has a url with class safebooru file page
         *   system:does not have a url with url class safebooru file page
         *   system:tag as number page < 5
+        *   system:has notes
+        *   system:no notes
+        *   system:does not have notes
+        *   system:num notes is 5
+        *   system:num notes > 1
+        *   system:has note with name note name
+        *   system:no note with name note name
+        *   system:does not have note with name note name
 
     More system predicate types and input formats will be available in future. Please test out the system predicates you want to send. Reverse engineering system predicate data from text is obviously tricky. If a system predicate does not parse, you'll get 400.
 
@@ -1254,6 +1398,7 @@ Arguments (in percent-encoded JSON):
     *   `only_return_identifiers`: true or false (optional, defaulting to false)
     *   `detailed_url_information`: true or false (optional, defaulting to false)
     *   `hide_service_names_tags`: true or false (optional, defaulting to false)
+    *   `include_notes`: true or false (optional, defaulting to false)
 
     You need one of file_ids or hashes. If your access key is restricted by tag, you cannot search by hashes, and **the file_ids you search for must have been in the most recent search result**.
 
