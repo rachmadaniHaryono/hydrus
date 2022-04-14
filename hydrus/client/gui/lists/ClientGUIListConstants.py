@@ -207,6 +207,7 @@ class COLUMN_LIST_FILE_SEED_CACHE( COLUMN_LIST_DEFINITION ):
     LAST_MODIFIED = 4
     SOURCE_TIME = 5
     NOTE = 6
+    EXT = 7
     
 
 column_list_type_name_lookup[ COLUMN_LIST_FILE_SEED_CACHE.ID ] = 'file log'
@@ -218,6 +219,7 @@ register_column_type( COLUMN_LIST_FILE_SEED_CACHE.ID, COLUMN_LIST_FILE_SEED_CACH
 register_column_type( COLUMN_LIST_FILE_SEED_CACHE.ID, COLUMN_LIST_FILE_SEED_CACHE.LAST_MODIFIED, 'last modified', False, 23, True )
 register_column_type( COLUMN_LIST_FILE_SEED_CACHE.ID, COLUMN_LIST_FILE_SEED_CACHE.SOURCE_TIME, 'source time', False, 23, True )
 register_column_type( COLUMN_LIST_FILE_SEED_CACHE.ID, COLUMN_LIST_FILE_SEED_CACHE.NOTE, 'note', False, 20, True )
+register_column_type( COLUMN_LIST_FILE_SEED_CACHE.ID, COLUMN_LIST_FILE_SEED_CACHE.EXT, 'ext', False, 5, True )
 
 default_column_list_sort_lookup[ COLUMN_LIST_FILE_SEED_CACHE.ID ] = ( COLUMN_LIST_FILE_SEED_CACHE.NUMBER, True )
 

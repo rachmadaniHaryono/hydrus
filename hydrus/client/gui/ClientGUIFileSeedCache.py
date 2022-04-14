@@ -272,6 +272,26 @@ def PopulateFileSeedCacheMenu( win: QW.QWidget, menu: QW.QMenu, file_seed_cache:
     ClientGUIMenus.AppendMenu( menu, submenu, 'import new sources' )
     
 
+def GetExtFromPrettyFileSeedData( file_seed_data: str )->str:
+
+    try:
+
+        from urllib.parse import urlparse
+        from os.path import splitext
+
+        ext = splitext(urlparse(file_seed_data).path)[1].lower()
+
+        if ext.startswith('.'):
+
+            return ext[1:]
+
+        return ext
+
+    except Exception:
+
+        return ''
+
+
 class EditFileSeedCachePanel( ClientGUIScrolledPanels.EditPanel ):
     
     def __init__( self, parent, controller, file_seed_cache ):
@@ -349,8 +369,9 @@ class EditFileSeedCachePanel( ClientGUIScrolledPanels.EditPanel ):
         
         pretty_note = note.split( os.linesep )[0]
         
-        display_tuple = ( pretty_file_seed_index, pretty_file_seed_data, pretty_status, pretty_added, pretty_modified, pretty_source_time, pretty_note )
-        sort_tuple = ( file_seed_index, file_seed_data, status, added, modified, sort_source_time, note )
+        ext = GetExtFromPrettyFileSeedData( pretty_file_seed_data )
+        display_tuple = ( pretty_file_seed_index, pretty_file_seed_data, pretty_status, pretty_added, pretty_modified, pretty_source_time, pretty_note, ext )
+        sort_tuple = ( file_seed_index, file_seed_data, status, added, modified, sort_source_time, note, ext )
         
         return ( display_tuple, sort_tuple )
         
