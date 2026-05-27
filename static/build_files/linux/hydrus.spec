@@ -9,7 +9,7 @@ client_a = Analysis(['hydrus/hydrus_client.py'],
                ('hydrus/bin', 'bin'),
                ('hydrus/help', 'help'),
                ('hydrus/static', 'static'),
-               ('hydrus/license.txt', '.'),
+               ('hydrus/LICENSE', '.'),
                ('hydrus/README.md', '.'),
                ('hydrus/help my client will not boot.txt', '.')
              ],
