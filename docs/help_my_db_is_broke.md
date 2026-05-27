@@ -253,7 +253,7 @@ Check the contact page in the help (install_dir/help/contact.html in a built ins
 
 ## after fixing: recovering files
 
-When recovering a database, you may lose some data or have to resync an older thing with a newer thing. If you need to tell your database to check for files it thinks it has but are now missing--and, conversely, to check for files it has but did not know about--check out 'help my media files are broke.txt', also in the db dir, right beside this document.
+When recovering a database, you may lose some data or have to resync an older thing with a newer thing. If you need to tell your database to check for files it thinks it has but are now missing--and, conversely, to check for files it has but did not know about--check out 'Help my media files are broke', right beside this document.
 
 ## after fixing: recovering mappings
 
