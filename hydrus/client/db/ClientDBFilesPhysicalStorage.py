@@ -136,7 +136,7 @@ class ClientDBFilesPhysicalStorage( ClientDBModule.ClientDBModule ):
         subfolders = set()
         
         location_ids_to_locations = {}
-        base_locations_to_presumptive_subfolder_paths = collections.defaultdict( set )
+        #base_locations_to_presumptive_subfolder_paths = collections.defaultdict( set )
         
         current_granularity = self._GetCurrentGranularity()
         
@@ -169,7 +169,7 @@ class ClientDBFilesPhysicalStorage( ClientDBModule.ClientDBModule ):
                 
                 base_location = paths_to_base_locations[ location ]
                 
-            
+            '''
             if base_location not in base_locations_to_presumptive_subfolder_paths:
                 
                 try:
@@ -183,14 +183,14 @@ class ClientDBFilesPhysicalStorage( ClientDBModule.ClientDBModule ):
                     pass # welp
                     
                 
-            
+            '''
             subfolder = ClientFilesPhysical.FilesStorageSubfolder( prefix, base_location )
-            
+            '''
             if subfolder.path in base_locations_to_presumptive_subfolder_paths[ base_location ]:
                 
                 subfolder.SetWeKnowItExistedAsOfNow( True )
                 
-            
+            '''
             subfolders.add( subfolder )
             
         
