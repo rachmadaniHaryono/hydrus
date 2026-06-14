@@ -112,6 +112,11 @@ class App( QW.QApplication ):
         
         if HC.PLATFORM_LINUX:
             
+            # if this guy prints a Qt warning to log like this:
+            # Failed to register with host portal QDBusError("org.freedesktop.portal.Error.Failed", "Could not register app ID: Connection already associated with an application ID")
+            # that's fine; it just means 'hey there was no .desktop file in your like ~/.local/share/applications that actually agreed with this, so idk about icons and so on bro'
+            # maybe there's a better way of handling this, but I don't want to scan the users applications folder tbh
+            # maybe we just suppress the warning
             self.setDesktopFileName( 'io.github.hydrusnetwork.hydrus' )
             
         
