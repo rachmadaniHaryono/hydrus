@@ -2427,11 +2427,6 @@ class Controller( HydrusController.HydrusController ):
     
     def SynchroniseRepositories( self ):
         
-        if CG.client_controller.new_options.GetBoolean( 'pause_all_new_network_traffic' ):
-            
-            return
-            
-        
         if not self.new_options.GetBoolean( 'pause_repo_sync' ):
             
             services = self.services_manager.GetServices( HC.REPOSITORIES, randomised = True )
