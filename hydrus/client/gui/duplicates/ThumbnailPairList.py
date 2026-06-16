@@ -77,7 +77,7 @@ class ThumbnailPairListModel( QC.QAbstractTableModel ):
         
         def work_callable():
             
-            thumbnail_hydrus_bmp = CG.client_controller.thumbnails_cache.GetThumbnail( media_result, ( 0, 0 ) ) # use default thumbnail size
+            thumbnail_hydrus_bmp = CG.client_controller.thumbnails_cache.GetThumbnail( media_result )
             
             return thumbnail_hydrus_bmp
             

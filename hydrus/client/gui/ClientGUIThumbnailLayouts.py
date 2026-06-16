@@ -317,7 +317,6 @@ class MasonryLayout(ThumbnailLayout): # also known as Waterfall layout
                 i += 1
                 
             
-        
         else:
             
             # we can only align horizontally the items in a row after a row is completed,
@@ -332,7 +331,7 @@ class MasonryLayout(ThumbnailLayout): # also known as Waterfall layout
                 elif params.content_alignment == QC.Qt.AlignmentFlag.AlignHCenter:
                     
                     row_extra_left_padding = ( self._viewport_width - current_col_pos ) / 2
-                                    
+                    
                 for item in row_items: item.setPos(item.pos().x() + row_extra_left_padding, item.pos().y())
                 
             

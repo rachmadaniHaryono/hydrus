@@ -214,6 +214,7 @@ class Controller( HydrusController.HydrusController ):
         self.call_after_catcher = ClientGUICallAfter.CallAfterEventCatcher( QW.QApplication.instance() )
         
         self.thumbnails_cache = None
+        self.thumbnails_cache_graphics_view_test = None
         
         Controller.my_instance = self
         
@@ -673,6 +674,7 @@ class Controller( HydrusController.HydrusController ):
         self.images_cache.Clear()
         self.image_tiles_cache.Clear()
         self.thumbnails_cache.Clear()
+        self.thumbnails_cache_graphics_view_test.Clear()
         
     
     def ClipboardHasImage( self ):
@@ -1286,6 +1288,7 @@ class Controller( HydrusController.HydrusController ):
         self.images_cache = ClientCaches.ImageRendererCache( self )
         self.image_tiles_cache = ClientCaches.ImageTileCache( self )
         self.thumbnails_cache = ClientCaches.ThumbnailCache( self )
+        self.thumbnails_cache_graphics_view_test = ClientCaches.ThumbnailCacheGraphicsViewTest( self )
         
         self.frame_splash_status.SetText( 'initialising managers' )
         
@@ -2670,7 +2673,7 @@ class Controller( HydrusController.HydrusController ):
                 return
                 
             
-            thumbnail = self.thumbnails_cache.GetThumbnail( display_media_result, ( 0, 0 ) ) # using default thumbnail size here
+            thumbnail = self.thumbnails_cache.GetThumbnail( display_media_result )
             
             qt_image = thumbnail.GetQtImage().copy()
             
