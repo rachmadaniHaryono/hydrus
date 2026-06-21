@@ -52,7 +52,7 @@ from hydrus.client.metadata import ClientRatings
 from hydrus.client.metadata import ClientTags
 from hydrus.client.metadata import ClientTagSorting
 
-def AddAudioVolumeMenu( menu, canvas_type ):
+def AddAudioVolumeMenu( menu, canvas_type, this_container ):
     
     mute_volume_type = None
     volume_volume_type = ClientGUIMediaControls.AUDIO_GLOBAL
@@ -110,6 +110,16 @@ def AddAudioVolumeMenu( menu, canvas_type ):
         
         ClientGUIMenus.AppendMenuItem( volume_menu, label, 'Mute/unmute audio.', ClientGUIMediaControls.FlipMute, mute_volume_type )
         
+        if this_container.IsMuted():
+            
+            label = 'unmute this window'
+            
+        else:
+            
+            label = 'mute this window'
+            
+        
+        ClientGUIMenus.AppendMenuItem( volume_menu, label, 'Mute/unmute audio.', this_container.UpdateMediaWindowMute, not this_container.IsMuted() )
     
     #
     
@@ -1450,7 +1460,25 @@ class Canvas( CAC.ApplicationCommandProcessorMixin, QW.QWidget ):
                 return
                 
             
-            command_processed = ClientGUIMediaModalActions.ApplyContentApplicationCommandToMedia( self, command, (self._current_media,) )
+            command_processed = ClientGUIMediaModalActions.ApplyContentApplicationCommandToMedia( self, command, ( self._current_media, ) )
+            
+        elif command.IsInteractiveContentCommand():
+            
+            if self._current_media is None:
+                
+                return
+                
+            
+            content_command = ClientGUIMediaModalActions.GetContentApplicationCommandFromInteractiveContentCommand( self, command, self._current_media )
+            
+            if content_command.IsContentCommand():
+                
+                command_processed = ClientGUIMediaModalActions.ApplyContentApplicationCommandToMedia( self, content_command, ( self._current_media, ) )
+                
+            else:
+                
+                command_processed = False
+                
             
         else:
             
@@ -1766,7 +1794,7 @@ class CanvasPanel( Canvas ):
             ClientGUIMenus.AppendSeparator( menu )
             
         
-        AddAudioVolumeMenu( menu, self.CANVAS_TYPE )
+        AddAudioVolumeMenu( menu, self.CANVAS_TYPE, self._media_container )
         
         if self._current_media is not None:
             
@@ -3223,6 +3251,11 @@ class CanvasWithHovers( Canvas ):
         return True
         
     
+    def UpdateMediaWindowMute( self, mute_state ):
+        
+        self._media_container.UpdateMediaWindowMute( mute_state )
+        
+    
     def TIMERUIUpdate( self ):
         
         for hover in self._hovers:
@@ -4119,6 +4152,9 @@ class CanvasMediaListBrowser( CanvasMediaListNavigable ):
         self._normal_slideshow_period = 0.0
         self._special_slideshow_period_for_current_media = None
         
+        self.slideshow_is_shuffling = CG.client_controller.new_options.GetBoolean( 'slideshows_progress_randomly' )
+        self.this_slideshow_always_play_duration_media_once_through = CG.client_controller.new_options.GetBoolean( 'slideshow_always_play_duration_media_once_through' )
+        
         if first_hash is None:
             
             first_media = self._media_list.GetFirst()
@@ -4257,7 +4293,7 @@ class CanvasMediaListBrowser( CanvasMediaListNavigable ):
             
             if self._media_container.CurrentlyPresentingMediaWithDuration():
                 
-                if CG.client_controller.new_options.GetBoolean( 'slideshow_always_play_duration_media_once_through' ):
+                if self.this_slideshow_always_play_duration_media_once_through:
                     
                     if not self._media_container.HasPlayedOnceThrough():
                         
@@ -4280,7 +4316,7 @@ class CanvasMediaListBrowser( CanvasMediaListNavigable ):
                 return
                 
             
-            if CG.client_controller.new_options.GetBoolean( 'slideshows_progress_randomly' ):
+            if self.slideshow_is_shuffling:
                 
                 self._ShowRandom()
                 
@@ -4390,6 +4426,16 @@ class CanvasMediaListBrowser( CanvasMediaListNavigable ):
             
         
     
+    def SlideshowIsShuffling( self ):
+        
+        return self.slideshow_is_shuffling
+        
+    
+    def SlideshowIsPlayingMediaDurationOnceThrough( self ):
+        
+        return self.this_slideshow_always_play_duration_media_once_through
+        
+    
     def NotifyUserChangedMedia( self ):
         
         self._RegisterNextSlideshowPresentation()
@@ -4421,6 +4467,22 @@ class CanvasMediaListBrowser( CanvasMediaListNavigable ):
                     
                     self._StartSlideshow( period_seconds )
                     
+                
+            elif action == CAC.SIMPLE_FLIP_THISWINDOW_SLIDESHOW_SHUFFLE:
+                
+                self.slideshow_is_shuffling = not self.slideshow_is_shuffling
+                
+            elif action == CAC.SIMPLE_FLIP_GLOBAL_SLIDESHOW_SHUFFLE:
+                
+                self.slideshow_is_shuffling = CG.client_controller.new_options.FlipBoolean( 'slideshows_progress_randomly' )
+                
+            elif action == CAC.SIMPLE_FLIP_THISWINDOW_SLIDESHOW_ALWAYS_PLAY_DURATION_MEDIA_ONCE_THROUGH:
+                
+                self.this_slideshow_always_play_duration_media_once_through = not self.this_slideshow_always_play_duration_media_once_through
+                
+            elif action == CAC.SIMPLE_FLIP_GLOBAL_SLIDESHOW_ALWAYS_PLAY_DURATION_MEDIA_ONCE_THROUGH:
+                
+                self.this_slideshow_always_play_duration_media_once_through = CG.client_controller.new_options.FlipBoolean( 'slideshow_always_play_duration_media_once_through' )
                 
             elif action == CAC.SIMPLE_SHOW_MENU:
                 
@@ -4520,11 +4582,11 @@ class CanvasMediaListBrowser( CanvasMediaListNavigable ):
                 ClientGUIMenus.AppendMenuItem( menu, 'go fullscreen', 'Make this media viewer a fullscreen window without borders.', self.ProcessApplicationCommand, CAC.ApplicationCommand.STATICCreateSimpleCommand( CAC.SIMPLE_SWITCH_BETWEEN_FULLSCREEN_BORDERLESS_AND_REGULAR_FRAMED_WINDOW ) )
                 
             
-            ClientGUICanvasMenus.AppendSlideshowMenu( self, menu, self._slideshow_is_running, slideshow_resume_duration = self._normal_slideshow_period )
+            ClientGUICanvasMenus.AppendSlideshowMenu( self, menu, self._slideshow_is_running, slideshow_duration = self._normal_slideshow_period, slideshow_is_shuffling = self.slideshow_is_shuffling, slideshow_is_playing_once_through = self.this_slideshow_always_play_duration_media_once_through )
             
             ClientGUIMenus.AppendSeparator( menu )
             
-            AddAudioVolumeMenu( menu, self.CANVAS_TYPE )
+            AddAudioVolumeMenu( menu, self.CANVAS_TYPE, self._media_container )
             
             ClientGUIMenus.AppendSeparator( menu )
             
