@@ -16,6 +16,64 @@ from hydrus.client.gui.search import ClientGUIACDropdown
 from hydrus.client.gui.widgets import ClientGUICommon
 from hydrus.client.media import ClientMediaFileFilter
 
+INTERACTABLE_SERVICE_KEY_TYPES = ( HC.LOCAL_TAG, HC.LOCAL_RATING_NUMERICAL, HC.LOCAL_RATING_INCDEC )
+
+class InteractableServiceKeyPanel( QW.QWidget ):
+    
+    def __init__( self, parent: QW.QWidget ):
+        
+        super().__init__( parent )
+        
+        self._settable_services = ClientGUICommon.BetterChoice( self )
+        self._action = HC.CONTENT_UPDATE_SET
+        
+        for service in CG.client_controller.services_manager.GetServices( INTERACTABLE_SERVICE_KEY_TYPES ):
+            
+            service_name = service.GetName()
+            service_key = service.GetServiceKey()
+            
+            self._settable_services.addItem( service_name, service_key )
+            
+        
+        vbox = QP.VBoxLayout()
+        
+        settables_sub_vbox = QP.VBoxLayout()
+        
+        QP.AddToLayout( settables_sub_vbox, self._settable_services, CC.FLAGS_EXPAND_SIZER_BOTH_WAYS )
+        QP.AddToLayout( vbox, settables_sub_vbox, CC.FLAGS_EXPAND_SIZER_PERPENDICULAR )
+        
+        self.setLayout( vbox )
+        
+    
+    def GetValue( self ):
+        
+        service_key = self._settable_services.GetValue()
+        
+        if service_key is None:
+            
+            raise HydrusExceptions.VetoException( 'Please select a service!' )
+            
+        
+        service_type = CG.client_controller.services_manager.GetServiceType( service_key )
+        
+        if service_type == HC.LOCAL_TAG:
+            
+            content_type = HC.CONTENT_TYPE_MAPPINGS
+            
+        elif service_type == HC.LOCAL_RATING_NUMERICAL or service_type == HC.LOCAL_RATING_INCDEC:
+            
+            content_type = HC.CONTENT_TYPE_RATINGS
+            
+        
+        return CAC.ApplicationCommand( CAC.APPLICATION_COMMAND_TYPE_INTERACTIVE_CONTENT, ( service_key, content_type, self._action ) )
+        
+    
+    def SetValue( self, service_key: bytes ):
+        
+        self._settable_services.SetValue( service_key )
+        
+    
+
 class LocalFilesSubPanel( QW.QWidget ):
     
     def __init__( self, parent: QW.QWidget ):
@@ -1021,62 +1079,6 @@ class TagSubPanel( QW.QWidget ):
         
     
 
-class EditValueSubPanel( QW.QWidget ):
-    
-    def __init__( self, parent: QW.QWidget ):
-        
-        super().__init__( parent )
-        
-        self._settable_services = ClientGUICommon.BetterChoice( self )
-        self._action = HC.CONTENT_UPDATE_SET
-        
-        for service in CG.client_controller.services_manager.GetServices( parent.SETTABLE_SERVICE_TYPES ):
-            
-            service_name = service.GetName()
-            service_key = service.GetServiceKey()
-            
-            self._settable_services.addItem( service_name, service_key )
-            
-        
-        vbox = QP.VBoxLayout()
-        
-        settables_sub_vbox = QP.VBoxLayout()
-        
-        QP.AddToLayout( settables_sub_vbox, self._settable_services, CC.FLAGS_EXPAND_SIZER_BOTH_WAYS )
-        QP.AddToLayout( vbox, settables_sub_vbox, CC.FLAGS_EXPAND_SIZER_PERPENDICULAR )
-        
-        self.setLayout( vbox )
-        
-    
-    def GetValue( self ):
-        
-        service_key = self._settable_services.GetValue()
-        
-        if service_key is None:
-            
-            raise HydrusExceptions.VetoException( 'Please select a service!' )
-            
-        
-        service_type = CG.client_controller.services_manager.GetServiceType( service_key )
-        
-        if service_type == HC.LOCAL_TAG:
-            
-            content_type = HC.CONTENT_TYPE_MAPPINGS
-            
-        elif service_type == HC.LOCAL_RATING_NUMERICAL or service_type == HC.LOCAL_RATING_INCDEC:
-            
-            content_type = HC.CONTENT_TYPE_RATINGS
-            
-        
-        return CAC.ApplicationCommand( CAC.APPLICATION_COMMAND_TYPE_INTERACTIVE_CONTENT, ( service_key, content_type, self._action ) )
-        
-    
-    def SetValue( self, service_key: bytes ):
-        
-        self._settable_services.SetValue( service_key )
-        
-    
-
 class ApplicationCommandWidget( ClientGUIScrolledPanels.EditPanel ):
     
     PANEL_SIMPLE = 0
@@ -1085,9 +1087,7 @@ class ApplicationCommandWidget( ClientGUIScrolledPanels.EditPanel ):
     PANEL_RATING_NUMERICAL = 3
     PANEL_RATING_INCDEC = 4
     PANEL_LOCAL_FILES = 5
-    PANEL_MANUALLY_EDIT_VALUE = 6
-    
-    SETTABLE_SERVICE_TYPES = ( HC.LOCAL_TAG, HC.LOCAL_RATING_NUMERICAL, HC.LOCAL_RATING_INCDEC )
+    PANEL_INTERACTABLE_SERVICE_KEY = 6
     
     def __init__( self, parent: QW.QWidget, command: CAC.ApplicationCommand, shortcuts_name: str ):
         
@@ -1108,7 +1108,7 @@ class ApplicationCommandWidget( ClientGUIScrolledPanels.EditPanel ):
             self._panel_choice.addItem( 'like/dislike rating command', self.PANEL_RATING_LIKE )
             self._panel_choice.addItem( 'numerical rating command', self.PANEL_RATING_NUMERICAL )
             self._panel_choice.addItem( 'rating increment/decrement command', self.PANEL_RATING_INCDEC )
-            self._panel_choice.addItem( 'interactive \'edit value\' manual set command', self.PANEL_MANUALLY_EDIT_VALUE )
+            self._panel_choice.addItem( 'interactive \'edit value\' manual set command', self.PANEL_INTERACTABLE_SERVICE_KEY )
             
         else:
             
@@ -1127,7 +1127,7 @@ class ApplicationCommandWidget( ClientGUIScrolledPanels.EditPanel ):
         
         self._local_files_sub_panel = LocalFilesSubPanel( self )
         
-        self._settable_new_value_popups_sub_panel = EditValueSubPanel( self )
+        self._interactable_service_key_panel = InteractableServiceKeyPanel( self )
         
         #
         
@@ -1210,22 +1210,22 @@ class ApplicationCommandWidget( ClientGUIScrolledPanels.EditPanel ):
             
             if CG.client_controller.services_manager.ServiceExists( service_key ):
                 
-                self._settable_new_value_popups_sub_panel.SetValue( service_key )
+                self._interactable_service_key_panel.SetValue( service_key )
                 
             else:
                 
                 ClientGUIDialogsMessage.ShowWarning( self, 'The service that this command relies upon no longer exists! This command will reset to a default form.' )
                 
-                settable_services = list( CG.client_controller.services_manager.GetServices( self.SETTABLE_SERVICE_TYPES ) )
+                settable_services = list( CG.client_controller.services_manager.GetServices( INTERACTABLE_SERVICE_KEY_TYPES ) )
                 
                 service = settable_services[0]
                 
                 service_key = service.GetServiceKey()
                 
-                self._settable_new_value_popups_sub_panel.SetValue( service_key )
+                self._interactable_service_key_panel.SetValue( service_key )
                 
             
-            self._panel_choice.SetValue( self.PANEL_MANUALLY_EDIT_VALUE )
+            self._panel_choice.SetValue( self.PANEL_INTERACTABLE_SERVICE_KEY )
             
         #
         
@@ -1238,7 +1238,7 @@ class ApplicationCommandWidget( ClientGUIScrolledPanels.EditPanel ):
         QP.AddToLayout( vbox, self._rating_like_sub_panel, CC.FLAGS_EXPAND_SIZER_PERPENDICULAR )
         QP.AddToLayout( vbox, self._rating_numerical_sub_panel, CC.FLAGS_EXPAND_SIZER_PERPENDICULAR )
         QP.AddToLayout( vbox, self._rating_inc_dec_sub_panel, CC.FLAGS_EXPAND_SIZER_PERPENDICULAR )
-        QP.AddToLayout( vbox, self._settable_new_value_popups_sub_panel, CC.FLAGS_EXPAND_SIZER_PERPENDICULAR )
+        QP.AddToLayout( vbox, self._interactable_service_key_panel, CC.FLAGS_EXPAND_SIZER_PERPENDICULAR )
         vbox.addStretch( 0 )
         
         self.widget().setLayout( vbox )
@@ -1260,7 +1260,7 @@ class ApplicationCommandWidget( ClientGUIScrolledPanels.EditPanel ):
         self._rating_like_sub_panel.setVisible( panel_type == self.PANEL_RATING_LIKE )
         self._rating_numerical_sub_panel.setVisible( panel_type == self.PANEL_RATING_NUMERICAL )
         self._rating_inc_dec_sub_panel.setVisible( panel_type == self.PANEL_RATING_INCDEC )
-        self._settable_new_value_popups_sub_panel.setVisible( panel_type == self.PANEL_MANUALLY_EDIT_VALUE )
+        self._interactable_service_key_panel.setVisible( panel_type == self.PANEL_INTERACTABLE_SERVICE_KEY )
         
     
     def GetValue( self ):
@@ -1291,9 +1291,9 @@ class ApplicationCommandWidget( ClientGUIScrolledPanels.EditPanel ):
             
             return self._rating_inc_dec_sub_panel.GetValue()
             
-        elif panel_type == self.PANEL_MANUALLY_EDIT_VALUE:
+        elif panel_type == self.PANEL_INTERACTABLE_SERVICE_KEY:
             
-            return self._settable_new_value_popups_sub_panel.GetValue()
+            return self._interactable_service_key_panel.GetValue()
             
         
     

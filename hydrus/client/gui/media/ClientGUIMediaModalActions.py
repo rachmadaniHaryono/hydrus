@@ -597,7 +597,7 @@ def GetContentApplicationCommandFromInteractiveContentCommand( win: QW.QWidget, 
             
             try:
                 
-                value = ClientGUIDialogsQuick.EnterTextNumber( win, message=f'Enter the number to apply to \'{service_name}\'.', default = old_value, min_value = 0, max_value = 1000000 )
+                value = ClientGUIDialogsQuick.EnterNumber( win, message=f'Enter the number to apply to \'{service_name}\'.', default = old_value, min_value = 0, max_value = 1000000 )
                 
             except HydrusExceptions.CancelledException:
                 
