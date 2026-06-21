@@ -331,22 +331,47 @@ The setup should _just work_ on most normal computers, but very old or new syste
 
 Then run the 'setup_help' script to build the help. This isn't necessary, but it is nice to have it built locally. You can run this again at any time to update to the current help.
 
-??? note "Custom python or venv destination"
-    If you want to set up a venv using a different python than your system, you can just run `setup_venv.py` directly with that python, like this:
-    
-    ```bash
-    /path/to/my/python setup_venv.py
-    ```
-    
-    Or, as I said above, `pyenv` will let you replace the default python in the current shell easily too, in which case the regular `./setup_venv.py` will use your shimmed python.
-    
-    You can also select a custom venv destination:
-    
-    ```bash
-    /path/to/my/314/python setup_venv.py -v=venv314
-    ```
-    
-    If you are developing with hydrus, you can set up multiple venvs to test out different versions of python or, say, PySide vs PyQt.
+##### Advanced tricks
+
+If you want to set up a venv using a different python than your system, you can just run `setup_venv.py` directly with that python, like this:
+
+```bash
+/path/to/my/python setup_venv.py
+```
+
+Or, as I said above, `pyenv` will let you replace the default python in the current shell easily too, in which case the regular `./setup_venv.py` will use your shimmed python.
+
+You can also select a custom venv destination:
+
+```bash
+/path/to/my/314/python setup_venv.py -v=venv314
+```
+
+And, for automation, you can run the script in non-interactive mode using `-i`:
+
+```bash
+/path/to/my/python setup_venv.py -i=a
+```
+
+`-i=s` will install the `(s)imple` install choice without asking you for confirmation. `-i=a` will choose the `(a)dvanced`, selecting the `(t)est` versions of any choice and saying `(y)es` to all optional libraries.
+
+If you are developing with hydrus, you can set up multiple venvs to test out different versions of python or, say, PySide vs PyQt. Just make a script like this and most of the work can be done in one action:
+
+```bash
+#!/bin/bash
+
+pyenv shell 3.10
+./setup_venv.py -v=~/hyvenvs/venv310 -i=s
+pyenv shell 3.11
+./setup_venv.py -v=~/hyvenvs/venv311 -i=s
+pyenv shell 3.12
+./setup_venv.py -v=~/hyvenvs/venv312 -i=a
+pyenv shell 3.13
+./setup_venv.py -v=~/hyvenvs/venv313 -i=a
+pyenv shell 3.14
+./setup_venv.py -v=~/hyvenvs/venv314 -i=a
+```
+
 
 #### Running it
 
