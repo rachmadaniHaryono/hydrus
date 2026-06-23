@@ -35,7 +35,7 @@ Running the program from source takes a little extra first-time setup, but it al
     
     *   Get the .tar.zst from the github releases page. Extract it anywhere you like and create a shortcut to the 'hydrus_client' executable in the base install dir. The build is made on Ubuntu, so if you run something else, compatibility is hit and miss.
     *   If you have problems running the Ubuntu build, [running from source](running_from_source.md) is almost always an improvement.
-    *   You can also try [running the Windows version in wine](wine.md).
+    *   You can also try [running the Windows version in Wine/Bottles](wine.md).
     *   **Third parties (not maintained by Hydrus Developer)**:  
         * (These both run from source, so if you have trouble with the built release, they may work better for you!)
         * [AUR package](https://aur.archlinux.org/packages/hydrus/) - *Although please note that since AUR packages work off your system python, this has been known to cause issues when Arch suddenly updates to the latest Qt or something before we have had a chance to test things and it breaks hydrus. If you can, try just [running from source](running_from_source.md) yourself instead, where we can control things better!*
