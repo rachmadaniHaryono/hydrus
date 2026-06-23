@@ -366,6 +366,7 @@ class ClientOptions( HydrusSerialisable.SerialisableBase ):
             'mpv_null_audio_on_silent_media' : False,
             'mpv_allow_crashy_files_silently' : False,
             'test_thumbnails_graphics_view' : False,
+            'copy_import_files_to_temp_dir' : True,
         }
         
         #

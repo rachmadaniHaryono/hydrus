@@ -1209,22 +1209,29 @@ class FileSeed( HydrusSerialisable.SerialisableBase ):
                 raise HydrusExceptions.VetoException( 'Source file does not exist!' )
                 
             
-            ( os_file_handle, temp_path ) = HydrusTemp.GetTempPath( 'file_import' )
-            
-            try:
+            if CG.client_controller.new_options.GetBoolean( 'copy_import_files_to_temp_dir' ):
                 
-                if status_hook is not None:
+                ( os_file_handle, temp_path ) = HydrusTemp.GetTempPath( 'file_import' )
+                
+                try:
                     
-                    status_hook( 'copying file to temp location' )
+                    if status_hook is not None:
+                        
+                        status_hook( 'copying file to temp location' )
+                        
+                    
+                    HydrusPaths.MirrorFile( path, temp_path )
+                    
+                    self.Import( temp_path, full_import_options_container, status_hook = status_hook )
+                    
+                finally:
+                    
+                    HydrusTemp.CleanUpTempPath( os_file_handle, temp_path )
                     
                 
-                HydrusPaths.MirrorFile( path, temp_path )
+            else:
                 
-                self.Import( temp_path, full_import_options_container, status_hook = status_hook )
-                
-            finally:
-                
-                HydrusTemp.CleanUpTempPath( os_file_handle, temp_path )
+                self.Import( path, full_import_options_container, status_hook = status_hook )
                 
             
             self.WriteContentUpdates( full_import_options_container )
