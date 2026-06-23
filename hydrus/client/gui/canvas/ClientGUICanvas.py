@@ -2988,7 +2988,7 @@ class CanvasWithHovers( Canvas ):
             
         elif not should_be_hidden and not mouse_currently_shown:
             
-            self.setCursor( QG.QCursor( QC.Qt.CursorShape.ArrowCursor ) )
+            self.unsetCursor()
             
         
         self._cursor_autohide_timer.start( next_check_period_ms )
@@ -3023,7 +3023,7 @@ class CanvasWithHovers( Canvas ):
     
     def CleanBeforeDestroy( self ):
         
-        self.setCursor( QG.QCursor( QC.Qt.CursorShape.ArrowCursor ) )
+        self.unsetCursor()
         
         self.canvasWithHoversExiting.emit()
         
@@ -3133,7 +3133,7 @@ class CanvasWithHovers( Canvas ):
                 
                 if not mouse_currently_shown:
                     
-                    self.setCursor( QG.QCursor( QC.Qt.CursorShape.ArrowCursor ) )
+                    self.unsetCursor()
                     
                 
                 self._RestartCursorHideWait()
