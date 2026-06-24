@@ -365,7 +365,7 @@ You won't see all of these, but the service `type` enum is:
 Rating services have some extra data:
 
 - They all have some `colours` for differing rating states, the same as you'd see in `manage services`. Pen and brush are the line and the fill of the rating star shape, respectively. `like` generally means set/left-click, `dislike` means off/right-click, `null` means not set, and `mixed` is what I show in the edit rating dialog for multiple files when the files have differing values. Feel free to use them however you like.
-- They all have `show_in_thumbnail` and `show_in_thumbnail_even_if_null`, which you can obey in your display context if convenient.
+- They all have `show_in_thumbnail` and `show_in_thumbnail_even_when_null`, which you can obey in your display context if convenient.
 - Like/dislike and numerical services have `star_shape`, which is one of `circle | square | fat star | pentagram star | six point star | eight point star | x shape | square cross | triangle up | triangle down | triangle right | triangle left | diamond | rhombus right | rhombus left | hourglass | pentagon | hexagon | small hexagon | heart | teardrop | crescent moon` -or- `svg`, which means a custom user svg that can be fetched with [/get\_service\_rating\_svg](#get_service_rating_svg).
 - Numerical services have `min_stars` (0 or 1) and `max_stars` (1 to 20). `allows_zero` lines up with `min_stars` and is for your convenience.
 
