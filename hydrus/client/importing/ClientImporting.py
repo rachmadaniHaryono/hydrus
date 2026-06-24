@@ -1,6 +1,5 @@
 import random
 
-from hydrus.core import HydrusConstants as HC
 from hydrus.core import HydrusData
 from hydrus.core import HydrusNumbers
 from hydrus.core import HydrusText
@@ -12,7 +11,6 @@ from hydrus.client.importing import ClientImportFileSeeds
 from hydrus.client.importing.options import ImportOptionsConstants as IOC
 from hydrus.client.importing.options import ImportOptionsContainer
 from hydrus.client.networking import ClientNetworkingJobs
-from hydrus.client.parsing import ClientParsingResults
 
 CHECKER_STATUS_OK = 0
 CHECKER_STATUS_DEAD = 1
