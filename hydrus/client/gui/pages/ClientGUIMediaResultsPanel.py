@@ -2617,6 +2617,7 @@ class MediaResultsPanel( CAC.ApplicationCommandProcessorMixin, ClientMediaList.M
                 
                 command_processed = False
                 
+            
         else:
             
             command_processed = False

@@ -3621,7 +3621,6 @@ ATTACH "client.mappings.db" as external_mappings;'''
         crash_reporting_on = CG.client_controller.logger.CurrentlyCrashReporting()
         ClientGUIMenus.AppendMenuCheckItem( debug_modes, 'use faulthandler to log crashes', 'Enable python crash logging. Note this will disable Windows Error Reporting or Linux Dumps, and it does not play well with mpv.', crash_reporting_on, self._FlipCrashReporting )
         
-        
         ClientGUIMenus.AppendMenu( debug_menu, debug_modes, 'debug modes' )
         
         profiling = ClientGUIMenus.GenerateMenu( debug_menu )
