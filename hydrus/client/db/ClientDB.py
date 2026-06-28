@@ -8260,6 +8260,30 @@ class DB( HydrusDB.HydrusDB ):
                 
             
         
+        if version == 676:
+            
+            try:
+                
+                self._controller.frame_splash_status.SetSubtext( f'scheduling some maintenance work' )
+                
+                ( current_files_table_name, deleted_files_table_name, pending_files_table_name, petitioned_files_table_name ) = ClientDBFilesStorage.GenerateFilesTableNames( self.modules_services.combined_local_file_domains_service_id )
+                
+                june_2_timestamp_ms = 1780358400000
+                
+                hash_ids = self._STS( self._Execute( f'SELECT hash_id FROM {current_files_table_name} CROSS JOIN files_info USING ( hash_id ) WHERE mime IN {HydrusLists.SplayListForDB( HC.FILES_THAT_CAN_HAVE_HUMAN_READABLE_EMBEDDED_METADATA )} AND timestamp_ms > ?;', ( june_2_timestamp_ms, ) ) )
+                
+                self.modules_files_maintenance_queue.AddJobs( hash_ids, ClientFilesMaintenance.REGENERATE_FILE_DATA_JOB_FILE_HAS_HUMAN_READABLE_EMBEDDED_METADATA )
+                
+            except Exception as e:
+                
+                HydrusData.PrintException( e )
+                
+                message = 'Some file maintenance failed to schedule! This is not super important, but hydev would be interested in seeing the error that was printed to the log.'
+                
+                self.pub_initial_message( message )
+                
+            
+        
         #
         
         self._controller.frame_splash_status.SetTitleText( 'updated db to v{}'.format( HydrusNumbers.ToHumanInt( version + 1 ) ) )
