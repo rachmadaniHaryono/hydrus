@@ -8268,11 +8268,20 @@ class DB( HydrusDB.HydrusDB ):
                 
                 ( current_files_table_name, deleted_files_table_name, pending_files_table_name, petitioned_files_table_name ) = ClientDBFilesStorage.GenerateFilesTableNames( self.modules_services.combined_local_file_domains_service_id )
                 
+                # messed up some parsing for files with mixed text/bytes info dicts
                 june_2_timestamp_ms = 1780358400000
                 
                 hash_ids = self._STS( self._Execute( f'SELECT hash_id FROM {current_files_table_name} CROSS JOIN files_info USING ( hash_id ) WHERE mime IN {HydrusLists.SplayListForDB( HC.FILES_THAT_CAN_HAVE_HUMAN_READABLE_EMBEDDED_METADATA )} AND timestamp_ms > ?;', ( june_2_timestamp_ms, ) ) )
                 
                 self.modules_files_maintenance_queue.AddJobs( hash_ids, ClientFilesMaintenance.REGENERATE_FILE_DATA_JOB_FILE_HAS_HUMAN_READABLE_EMBEDDED_METADATA )
+                
+                #
+                
+                # _some_ of them got reset to '1 frames' somehow?!?
+                mimes_we_want = ( HC.IMAGE_AVIF_SEQUENCE, HC.IMAGE_HEIC_SEQUENCE, HC.IMAGE_HEIF_SEQUENCE, )
+                
+                hash_ids = self._STS( self._Execute( f'SELECT hash_id FROM {current_files_table_name} CROSS JOIN files_info USING ( hash_id ) WHERE mime IN {HydrusLists.SplayListForDB( mimes_we_want )};' ) )
+                self.modules_files_maintenance_queue.AddJobs( hash_ids, ClientFilesMaintenance.REGENERATE_FILE_DATA_JOB_FILE_METADATA )
                 
             except Exception as e:
                 
