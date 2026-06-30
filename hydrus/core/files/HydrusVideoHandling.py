@@ -31,18 +31,25 @@ def FileIsAnimated( path ):
     
 
 # bits of this were originally cribbed from moviepy
-def GetFFMPEGInfoLines( path, count_frames_manually = False, only_first_second = False ):
+def GetFFMPEGInfoLines( path, count_frames_manually = False, only_first_second = False, video_stream_mapping = None ):
     
     ffmpeg_path = HydrusFFMPEG.GetCurrentFFMPEGPath()
     
     # open the file in a pipe, provoke an error, read output
     
-    cmd = [ ffmpeg_path, "-xerror", "-i", path ]
+    cmd = [ ffmpeg_path ]
     
     if only_first_second:
         
-        cmd.insert( 1, '-t' )
-        cmd.insert( 2, '1' )
+        cmd += [ '-t', '1' ]
+        
+    
+    cmd += [ "-xerror", "-i", path ]
+    
+    if video_stream_mapping is not None:
+        
+        # selecting 0:1 of an avifs etc..
+        cmd += [ '-map', video_stream_mapping ]
         
     
     if count_frames_manually:
@@ -92,7 +99,7 @@ def GetFFMPEGVideoProperties( path, force_count_frames_manually = False ):
     
     lines_for_first_second = GetFFMPEGInfoLines( path, count_frames_manually = True, only_first_second = True )
     
-    ( has_video, video_format ) = ParseFFMPEGVideoFormat( lines_for_first_second )
+    ( has_video, video_format, video_stream_mapping ) = ParseFFMPEGVideoFormat( lines_for_first_second )
     
     if not has_video:
         
@@ -145,7 +152,7 @@ def GetFFMPEGVideoProperties( path, force_count_frames_manually = False ):
     
     if force_count_frames_manually:
         
-        lines = GetFFMPEGInfoLines( path, count_frames_manually = True )
+        lines = GetFFMPEGInfoLines( path, count_frames_manually = True, video_stream_mapping = video_stream_mapping )
         
         num_frames = ParseFFMPEGNumFramesManually( lines )
         
@@ -156,7 +163,7 @@ def GetFFMPEGVideoProperties( path, force_count_frames_manually = False ):
             if 0 < fps < 1000 < implied_fps_given_what_we_know:
                 
                 # ok let's assume FFMPEG pulled 'duration = 40ms' for a file with 400 frames (looking at this now)
-                # we'll trust out 'not confident' fps number over that
+                # we'll trust our 'not confident' fps number over that
                 duration_s = None
                 
             
@@ -191,7 +198,7 @@ def GetMime( path ):
         return HC.APPLICATION_UNKNOWN
         
     
-    ( has_video, video_format ) = ParseFFMPEGVideoFormat( lines )
+    ( has_video, video_format, video_stream_mapping ) = ParseFFMPEGVideoFormat( lines )
     ( has_audio, audio_format ) = HydrusAudioHandling.ParseFFMPEGAudio( lines )
     
     if not ( has_video or has_audio ):
@@ -420,6 +427,7 @@ def ParseFFMPEGDuration( lines ):
         raise HydrusExceptions.DamagedOrUnusualFileException( 'Error reading duration!' )
         
     
+
 def ParseFFMPEGFPS( lines, png_ok = False ):
     
     try:
@@ -436,60 +444,6 @@ def ParseFFMPEGFPS( lines, png_ok = False ):
         else:
             
             fps = min( possible_results )
-            
-        
-        return ( fps, confident )
-        
-    except Exception as e:
-        
-        raise HydrusExceptions.DamagedOrUnusualFileException( 'Error estimating framerate!' )
-        
-    
-
-def ParseFFMPEGFPSFromFirstSecond( lines_for_first_second ):
-    
-    try:
-        
-        line = ParseFFMPEGVideoLine( lines_for_first_second )
-        
-        ( possible_results, confident ) = ParseFFMPEGFPSPossibleResults( line )
-        
-        num_frames_in_first_second = ParseFFMPEGNumFramesManually( lines_for_first_second )
-        
-        if len( possible_results ) == 0:
-            
-            fps = num_frames_in_first_second
-            confident = False
-            
-        else:
-            
-            # in some cases, fps is 0.77 and tbr is incorrectly 20. extreme values cause bad results. let's default to slowest, but test our actual first second for most legit-looking
-            
-            sensible_first_second = 1 <= num_frames_in_first_second <= 288
-            
-            fps = min( possible_results )
-            
-            fps_matches_with_first_second = False
-            
-            for possible_fps in possible_results:
-                
-                if num_frames_in_first_second - 1 <= possible_fps <= num_frames_in_first_second + 1:
-                    
-                    fps = possible_fps
-                    
-                    fps_matches_with_first_second = True
-                    
-                    break
-                    
-                
-            
-            confident = sensible_first_second and fps_matches_with_first_second
-            
-        
-        if fps is None or fps == 0:
-            
-            fps = 1
-            confident = False
             
         
         return ( fps, confident )
@@ -567,6 +521,7 @@ def ParseFFMPEGFPSPossibleResults( video_line ) -> tuple[ set[ float ], bool ]:
     
     return ( possible_results, confident )
     
+
 def ParseFFMPEGHasVideo( lines ) -> bool:
     
     try:
@@ -618,6 +573,7 @@ def ParseFFMPEGMetadataContainer( lines ) -> str:
     
     return ''
     
+
 def ParseFFMPEGMimeText( lines ):
     
     try:
@@ -637,6 +593,7 @@ def ParseFFMPEGMimeText( lines ):
         raise HydrusExceptions.DamagedOrUnusualFileException( 'Error reading file type!' )
         
     
+
 def ParseFFMPEGNumFramesManually( lines ) -> int:
     
     frame_lines = [ line for line in lines if line.startswith( 'frame=' ) ]
@@ -673,32 +630,56 @@ def ParseFFMPEGNumFramesManually( lines ) -> int:
 
 def ParseFFMPEGVideoFormat( lines ):
     
+    video_format = 'unknown'
+    stream_mapping = '0:0'
+    
     try:
         
         line = ParseFFMPEGVideoLine( lines )
         
     except HydrusExceptions.UnsupportedFileException:
         
-        return ( False, 'unknown' )
+        return ( False, 'unknown', stream_mapping )
         
+    
+    line = line.strip()
+    
+    # Stream #0:1[0x1](eng): Video: hevc (Main) (hvc1 / 0x31637668), yuv420p(tv), 256x144, 711 kb/s, 25 fps, 25 tbr, 1k tbn (default)
     
     try:
         
         match = re.search( r'(?<=Video:\s).+?(?=,)', line )
         
-        video_format = match.group()
-        
-        if video_format.startswith( 'none' ): # none (CRAW / mem_address), none, 6000x4000, blah blah
+        if match is not None:
             
-            return ( False, 'none' )
+            video_format = match.group()
+            
+            if video_format.startswith( 'none' ): # none (CRAW / mem_address), none, 6000x4000, blah blah
+                
+                return ( False, 'none', stream_mapping )
+                
             
         
     except Exception as e:
         
-        video_format = 'unknown'
+        pass # default to unknown
         
     
-    return ( True, video_format )
+    try:
+        
+        match = re.search( r'(?<=^Stream #)\d+:\d+', line )
+        
+        if match is not None:
+            
+            stream_mapping = match.group()
+            
+        
+    except Exception as e:
+        
+        pass # default to 0:0
+        
+    
+    return ( True, video_format, stream_mapping )
     
 
 def ParseFFMPEGVideoLine( lines, png_ok = False ) -> str:
@@ -721,9 +702,64 @@ def ParseFFMPEGVideoLine( lines, png_ok = False ) -> str:
         raise HydrusExceptions.DamagedOrUnusualFileException( 'Could not find video information!' )
         
     
-    line = lines_video[0]
+    # ok, interesting new situation with .avifs and .heifs and new ffmpeg
+    # old ffmpeg said one of these animated new formats had one Stream. new one says two--one an image and one a vid, with image first
+    # just going `line = lines_video[0]` was selecting the image, so now we need multi-track awareness
     
-    return line
+    # examples:
+    
+    #Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'avifs.avifs':
+    #  Metadata:
+    #    major_brand     : avis
+    #    minor_version   : 0
+    #    compatible_brands: avismsf1miafMA1B
+    #    creation_time   : 2020-04-07T16:39:26.000000Z
+    #  Duration: 00:00:00.50, start: 0.000000, bitrate: 793 kb/s
+    #  Stream #0:0[0x1]: Video: av1 (libdav1d) (Professional) (av01 / 0x31307661), yuv444p12le(pc), 159x159, 1 fps, 1 tbr, 1 tbn (default)
+    #    Metadata:
+    #      title           : Image
+    #  Stream #0:1[0x1](und): Video: av1 (libdav1d) (Professional) (av01 / 0x31307661), yuv444p12le(pc, progressive), 159x159 [SAR 1:1 DAR 1:1], 627 kb/s, 10 fps, 10 tbr, 10240 tbn (default)
+    #    Metadata:
+    #      handler_name    : GPAC avifs
+    #Stream mapping:
+    #  Stream #0:0 -> #0:0 (av1 (libdav1d) -> wrapped_avframe (native))
+    
+    #Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'heifs.heifs':
+    #  Metadata:
+    #    major_brand     : msf1
+    #    minor_version   : 0
+    #    compatible_brands: msf1hevcheicmif1iso8
+    #    creation_time   : 2018-03-09T14:16:50.000000Z
+    #  Duration: 00:00:04.80, start: 0.000000, bitrate: 714 kb/s
+    #  Stream #0:0[0x3eb]: Video: hevc (Main) (hvc1 / 0x31637668), yuv420p(tv), 256x144, 1 fps, 1 tbr, 1 tbn (default)
+    #    Metadata:
+    #      title           : HEVC Image
+    #  Stream #0:1[0x1](eng): Video: hevc (Main) (hvc1 / 0x31637668), yuv420p(tv), 256x144, 711 kb/s, 25 fps, 25 tbr, 1k tbn (default)
+    #    Metadata:
+    #      creation_time   : 2018-03-09T14:16:50.000000Z
+    #      handler_name    : HEIF/ImageSequence/PictureHandler
+    #      encoder         : HEVC Coding
+    #Stream mapping:
+    #  Stream #0:0 -> #0:0 (hevc (native) -> wrapped_avframe (native))
+    
+    def fps_looks_good( l ):
+        
+        ( possible_results, confident ) = ParseFFMPEGFPSPossibleResults( l )
+        
+        possible_results = set( possible_results )
+        possible_results.discard( 1 )
+        
+        return len( possible_results ) > 0 and confident
+        
+    
+    lines_with_good_video = [ line for line in lines_video if fps_looks_good( line ) ]
+    
+    if len( lines_with_good_video ) > 0:
+        
+        return lines_with_good_video[0]
+        
+    
+    return lines_video[0]
     
 
 def ParseFFMPEGVideoResolution( lines, png_ok = False ) -> tuple[ int, int ]:
@@ -845,7 +881,7 @@ class VideoRendererFFMPEG( object ):
     
     def __init__( self, path, mime, duration_ms, num_frames, target_resolution, clip_rect = None, start_pos = None ):
         
-        if duration_ms <= 0 or duration_ms is None:
+        if duration_ms is None or duration_ms <= 0:
             
             duration_ms = 100 # 100ms
             
@@ -856,6 +892,9 @@ class VideoRendererFFMPEG( object ):
         self._num_frames = num_frames
         self._target_resolution = target_resolution
         self._clip_rect = clip_rect
+        
+        self._have_selected_an_explicit_video_stream_mapping = False
+        self._video_stream_mapping = None
         
         if self._mime in HC.MIMES_THAT_WE_CAN_CHECK_FOR_TRANSPARENCY:
             
@@ -957,28 +996,38 @@ class VideoRendererFFMPEG( object ):
         
         cmd.extend( [ '-i', self._path ] )
         
+        if self._video_stream_mapping is not None:
+            
+            cmd += [ '-map', self._video_stream_mapping ]
+            
+        
         if do_ss and not do_fast_seek: # slow seek
             
             cmd.extend( [ '-ss', "%.03f" % ss ] )
             
         
+        video_filters = [ f'scale={w}:{h}' ]
+        
         if self._clip_rect is not None:
             
             ( clip_x, clip_y, clip_width, clip_height ) = self._clip_rect
             
-            cmd.extend( [ '-vf', 'crop={}:{}:{}:{}'.format( clip_width, clip_height, clip_x, clip_y ) ] )
+            video_filters.append( f'crop={clip_width}:{clip_height}:{clip_x}:{clip_y}' )
+            
+        
+        if len( video_filters ) > 0:
+            
+            cmd += [ '-vf', ','.join( video_filters ) ]
             
         
         cmd.extend( [
             '-loglevel', 'quiet',
-            '-f', 'image2pipe',
+            '-f', 'rawvideo',
             "-pix_fmt", self.pix_fmt,
-            "-s", str( w ) + 'x' + str( h ),
-            '-vsync', '0',
+            '-fps_mode', 'passthrough',
             '-vcodec', 'rawvideo',
             '-'
         ] )
-        
         
         HydrusData.CheckProgramIsNotShuttingDown()
         
@@ -1038,7 +1087,23 @@ class VideoRendererFFMPEG( object ):
             
             frame_of_data = self.process_reader.ReadChunk()
             
+            # we have selected the image track of a multi-track file like avifs. let's inspect and try again
             if len( frame_of_data ) != w * h * self.depth:
+                
+                if self.pos == 1 and not self._have_selected_an_explicit_video_stream_mapping:
+                    
+                    self._have_selected_an_explicit_video_stream_mapping = True
+                    
+                    lines_for_first_second = GetFFMPEGInfoLines( self._path, count_frames_manually = True, only_first_second = True )
+                    
+                    ( has_video, video_format, video_stream_mapping ) = ParseFFMPEGVideoFormat( lines_for_first_second )
+                    
+                    self._video_stream_mapping = video_stream_mapping
+                    
+                    self.initialize()
+                    
+                    return self.read_frame()
+                    
                 
                 if self.lastread is None:
                     

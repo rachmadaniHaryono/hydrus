@@ -8277,7 +8277,7 @@ class DB( HydrusDB.HydrusDB ):
                 
                 #
                 
-                # _some_ of them got reset to '1 frames' somehow?!?
+                # _some_ of them got reset to '1 frames' because of ffmpeg multi-video-track reporting update that broke metadata parsing
                 mimes_we_want = ( HC.IMAGE_AVIF_SEQUENCE, HC.IMAGE_HEIC_SEQUENCE, HC.IMAGE_HEIF_SEQUENCE, )
                 
                 hash_ids = self._STS( self._Execute( f'SELECT hash_id FROM {current_files_table_name} CROSS JOIN files_info USING ( hash_id ) WHERE mime IN {HydrusLists.SplayListForDB( mimes_we_want )};' ) )
