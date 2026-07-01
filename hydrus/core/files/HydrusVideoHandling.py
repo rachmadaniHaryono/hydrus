@@ -12,11 +12,13 @@ from hydrus.core.processes import HydrusSubprocess
 
 def FileIsAnimated( path ):
     
-    # TODO: this guy can be better, or at least it deserves some work
-    # surely we can have some sort of lines-inspection before we try the 'render first second' stuff, at least to discard obvious first stuff?
-    # I dunno, it is tricky. I only use this guy atm 2025-11 for animated jxl, which is indeed tricky to read from
-    # ffmpeg offers a slightly different codec, so maybe we could inspect that, but no duration data or anything, so what would a different ffmpeg version say?
-    # maybe this is ok as a backstop
+    # this is only used for jxl atm
+    
+    # TODO: it would be nice if this were nicer
+    # it would also be nice if we could ask libjxl for this flag via a Pillow plugin rather than this
+    # atm this renders the whole guy out and counts frames bleh
+    # note also that ffmpeg 8.x.x says "jpegxl_anim (libjxl_anim)" in the stream data, so we might have a shortcut there too
+    # would be nice to just have a 'render to gif' and then on the first output with frame num >1 we cancel out and return True
     
     try:
         
@@ -97,23 +99,23 @@ def GetFFMPEGInfoLines( path, count_frames_manually = False, only_first_second =
 
 def GetFFMPEGVideoProperties( path, force_count_frames_manually = False ):
     
-    lines_for_first_second = GetFFMPEGInfoLines( path, count_frames_manually = True, only_first_second = True )
+    ffmpeg_lines = GetFFMPEGInfoLines( path )
     
-    ( has_video, video_format, video_stream_mapping ) = ParseFFMPEGVideoFormat( lines_for_first_second )
+    ( has_video, video_format, video_stream_mapping ) = ParseFFMPEGVideoFormat( ffmpeg_lines )
     
     if not has_video:
         
         raise HydrusExceptions.DamagedOrUnusualFileException( 'Wanted to parse video data, but file did not appear to have a video stream!' )
         
     
-    resolution = ParseFFMPEGVideoResolution( lines_for_first_second )
+    resolution = ParseFFMPEGVideoResolution( ffmpeg_lines )
     
-    ( file_duration_in_s, stream_duration_in_s ) = ParseFFMPEGDuration( lines_for_first_second )
+    ( file_duration_in_s, stream_duration_in_s ) = ParseFFMPEGDuration( ffmpeg_lines )
     
     # this will have to be fixed when I add audio, and dynamically accounted for on dual vid/audio rendering
     duration_s = stream_duration_in_s
     
-    ( fps, confident_fps ) = ParseFFMPEGFPS( lines_for_first_second )
+    ( fps, confident_fps ) = ParseFFMPEGFPS( ffmpeg_lines )
     
     if duration_s is None and not confident_fps:
         
@@ -152,9 +154,9 @@ def GetFFMPEGVideoProperties( path, force_count_frames_manually = False ):
     
     if force_count_frames_manually:
         
-        lines = GetFFMPEGInfoLines( path, count_frames_manually = True, video_stream_mapping = video_stream_mapping )
+        count_frames_manually_lines = GetFFMPEGInfoLines( path, count_frames_manually = True, video_stream_mapping = video_stream_mapping )
         
-        num_frames = ParseFFMPEGNumFramesManually( lines )
+        num_frames = ParseFFMPEGNumFramesManually( count_frames_manually_lines )
         
         if num_frames > 0 and duration_s is not None:
             
@@ -180,7 +182,7 @@ def GetFFMPEGVideoProperties( path, force_count_frames_manually = False ):
     
     duration_in_ms = HydrusTime.MillisecondiseS( duration_s )
     
-    has_audio = VideoHasAudio( path, lines_for_first_second )
+    has_audio = VideoHasAudio( path, ffmpeg_lines )
     
     return ( resolution, duration_in_ms, num_frames, has_audio )
     
@@ -1094,9 +1096,9 @@ class VideoRendererFFMPEG( object ):
                     
                     self._have_selected_an_explicit_video_stream_mapping = True
                     
-                    lines_for_first_second = GetFFMPEGInfoLines( self._path, count_frames_manually = True, only_first_second = True )
+                    ffmpeg_lines = GetFFMPEGInfoLines( self._path )
                     
-                    ( has_video, video_format, video_stream_mapping ) = ParseFFMPEGVideoFormat( lines_for_first_second )
+                    ( has_video, video_format, video_stream_mapping ) = ParseFFMPEGVideoFormat( ffmpeg_lines )
                     
                     self._video_stream_mapping = video_stream_mapping
                     
