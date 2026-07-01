@@ -177,6 +177,11 @@ def GetFFMPEGVideoProperties( path, force_count_frames_manually = False ):
         
     else:
         
+        if duration_s is None:
+            
+            duration_s = 1.0
+            
+        
         num_frames = int( duration_s * fps )
         
     
