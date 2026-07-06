@@ -122,9 +122,6 @@ class Page( QW.QWidget ):
         # this is the only place we _do_ want to set the split as the parent of the thumbnail panel. doing it on init avoids init flicker
         self._media_panel = self._sidebar.GetDefaultEmptyMediaResultsPanel( self._management_media_split )
         
-        self._management_media_split.addWidget( self._search_preview_split )
-        self._management_media_split.addWidget( self._media_panel )
-        
         self._search_preview_split.addWidget( self._sidebar )
         self._search_preview_split.addWidget( self._preview_panel )
         
@@ -134,11 +131,7 @@ class Page( QW.QWidget ):
         
         self._preview_panel.setLayout( vbox )
         
-        self._management_media_split.widget( 0 ).setMinimumWidth( 120 )
-        self._management_media_split.widget( 1 ).setMinimumWidth( 120 )
-        
-        self._management_media_split.setStretchFactor( 0, 0 )
-        self._management_media_split.setStretchFactor( 1, 1 )
+        self._RebuildManagementMediaLayout()
         
         self._search_preview_split.widget( 0 ).setMinimumHeight( 180 )
         self._search_preview_split.widget( 1 ).setMinimumHeight( 180 )
@@ -324,26 +317,37 @@ class Page( QW.QWidget ):
             CG.client_controller.gui.SetStatusBarDirty()
             
         
+    
     def _RebuildManagementMediaLayout( self ):
         
-        alignment = CG.client_controller.new_options.GetNoneableInteger( 'tag_view_alignment' )
+        while self._management_media_split.count() > 0:
+            
+            self._management_media_split.widget( 0 ).setParent( None )
+            
         
-        if alignment == CC.DIRECTION_LEFT:
+        alignment = CG.client_controller.new_options.GetInteger( 'page_sidebar_alignment' )
+        
+        if alignment == CC.DIRECTION_RIGHT:
+            
+            self._management_media_split.addWidget( self._media_panel )
+            self._management_media_split.addWidget( self._search_preview_split )
+            
+        else:
             
             self._management_media_split.addWidget( self._search_preview_split )
             self._management_media_split.addWidget( self._media_panel )
             
-        elif alignment == CC.DIRECTION_RIGHT:
-            
-            self._management_media_split.addWidget( self._media_panel )
-            self._management_media_split.addWidget( self._search_preview_split )
-            
         
-        self._management_media_split.widget( 0 ).setMinimumWidth( 120 )
-        self._management_media_split.widget( 1 ).setMinimumWidth( 120 )
+        self._media_panel.setMinimumWidth( 120 )
+        self._search_preview_split.setMinimumWidth( 120 )
         
-        self._management_media_split.setStretchFactor( 0, 0 )
-        self._management_media_split.setStretchFactor( 1, 1 )
+        search_preview_split_index = self._management_media_split.indexOf( self._search_preview_split )
+        
+        self._management_media_split.setStretchFactor( search_preview_split_index, 0 )
+        
+        media_panel_index = self._management_media_split.indexOf( self._media_panel )
+        
+        self._management_media_split.setStretchFactor( media_panel_index, 1 )
         
     
     def _SwapMediaResultsPanel( self, new_panel: ClientGUIMediaResultsPanel.MediaResultsPanel ):
@@ -384,14 +388,27 @@ class Page( QW.QWidget ):
             
         else:
             
-            # this sets parent of new panel to self and sets parent of old panel to None
-            # rumao, it doesn't work if new_panel is already our child
-            self._management_media_split.replaceWidget( 1 if CG.client_controller.new_options.GetNoneableInteger( 'tag_view_alignment' ) == CC.DIRECTION_LEFT else 0, new_panel )
+            index_of_current_page = self._management_media_split.indexOf( old_panel )
+            
+            if index_of_current_page == -1:
+                
+                # this should not occur, but let's handle it anyway
+                
+                self._management_media_split.addWidget( new_panel )
+                
+            else:
+                
+                # this sets parent of new panel to self and sets parent of old panel to None
+                # rumao, it doesn't work if new_panel is already our child
+                self._management_media_split.replaceWidget( index_of_current_page, new_panel )
+                
             
         
         self._media_panel.setMinimumWidth( 120 )
         
-        self._management_media_split.setStretchFactor( 1, 1 )
+        index_of_new_page = self._management_media_split.indexOf( self._media_panel )
+        
+        self._management_media_split.setStretchFactor( index_of_new_page, 1 )
         
         self._management_media_split.setSizes( previous_sizes )
         
@@ -715,17 +732,18 @@ class Page( QW.QWidget ):
         
         sizes = self._management_media_split.sizes()
         
-        if CG.client_controller.new_options.GetNoneableInteger( 'tag_view_alignment' ) == CC.DIRECTION_RIGHT:
+        try:
             
-            sizes.reverse()
+            sidebar_index = self._management_media_split.indexOf( self._search_preview_split )
             
-        
-        if len( sizes ) > 1:
-            
-            if sizes[0] != 0:
+            if sidebar_index != -1:
                 
-                hpos = sizes[0]
+                hpos = sizes[ sidebar_index ]
                 
+            
+        except Exception as e:
+            
+            pass
             
         
         vpos = HC.options[ 'vpos' ]
@@ -914,18 +932,32 @@ class Page( QW.QWidget ):
         
         if hpos < 0:
             
-            sizing = [ total_sum + hpos, -hpos ]
+            sidebar_width = total_sum + hpos
+            media_panel_width = -hpos
             
-        elif hpos > 0:
+        else:
             
-            sizing = [ hpos, total_sum - hpos ]
-            
-        if CG.client_controller.new_options.GetNoneableInteger( 'tag_view_alignment' ) == CC.DIRECTION_RIGHT:
-            
-            sizing.reverse()
+            sidebar_width = hpos
+            media_panel_width = total_sum - hpos
             
         
-        self._management_media_split.setSizes( sizing )
+        sizes = []
+        
+        for i in range( self._management_media_split.count() ):
+            
+            w = self._management_media_split.widget( i )
+            
+            if w == self._search_preview_split:
+                
+                sizes.append( sidebar_width )
+                
+            elif w == self._media_panel:
+                
+                sizes.append( media_panel_width )
+                
+            
+        
+        self._management_media_split.setSizes( sizes )
         
         # handle if it was hidden before
         self._preview_panel.setVisible( True )
@@ -934,7 +966,7 @@ class Page( QW.QWidget ):
             
             self._search_preview_split.setSizes( [ total_sum + vpos, -vpos ] )
             
-        elif vpos > 0:
+        else:
             
             self._search_preview_split.setSizes( [ vpos, total_sum - vpos ] )
             

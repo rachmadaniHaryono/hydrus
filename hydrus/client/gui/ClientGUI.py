@@ -5417,7 +5417,6 @@ ATTACH "client.mappings.db" as external_mappings;'''
             
             self._vertical_splitter.addWidget( self._notebook )
             
-        
         else:
             
             if alignment == CC.DIRECTION_LEFT:
@@ -5432,7 +5431,6 @@ ATTACH "client.mappings.db" as external_mappings;'''
                 self._vertical_splitter.setCollapsible( 0, CG.client_controller.new_options.GetBoolean( 'treeview_sidebar_can_collapse' ) )
                 self._vertical_splitter.setCollapsible( 1, False )
                 
-                
             else:
                 
                 self._vertical_splitter.addWidget( self._notebook )
@@ -5444,7 +5442,7 @@ ATTACH "client.mappings.db" as external_mappings;'''
                 
                 self._vertical_splitter.setCollapsible( 0, False )
                 self._vertical_splitter.setCollapsible( 1, CG.client_controller.new_options.GetBoolean( 'treeview_sidebar_can_collapse' ) )
-            
+                
             
             self._vertical_splitter.setStretchFactor( 0, 0 )
             self._vertical_splitter.setStretchFactor( 1, 1 )

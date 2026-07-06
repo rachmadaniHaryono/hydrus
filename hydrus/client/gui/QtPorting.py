@@ -2138,10 +2138,9 @@ class TreeViewWithControls( QW.QWidget ):
         
     def _EmitTagViewAlignmentToggle( self, direction: int ):
         
-        CG.client_controller.new_options.SetNoneableInteger( 'tag_view_alignment', direction )
+        CG.client_controller.new_options.SetInteger( 'page_sidebar_alignment', direction )
         
         self.tagBarAlignmentChanged.emit()
-            
         
     
     def _AddBooleanMenuAction( self, menu, label: str, option_name: str, tooltip: str = None ):
@@ -2198,7 +2197,7 @@ class TreeViewWithControls( QW.QWidget ):
             menu.addAction( 'Move tree sidebar to left', lambda: self._EmitAlignmentToggle( CC.DIRECTION_LEFT ) )
             
         
-        if CG.client_controller.new_options.GetNoneableInteger( 'tag_view_alignment' ) == CC.DIRECTION_LEFT:
+        if CG.client_controller.new_options.GetInteger( 'page_sidebar_alignment' ) == CC.DIRECTION_LEFT:
             
             menu.addAction( 'Move tags/preview sidebar to right', lambda: self._EmitTagViewAlignmentToggle( CC.DIRECTION_RIGHT ) )
             

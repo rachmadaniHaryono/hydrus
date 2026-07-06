@@ -602,6 +602,7 @@ class ClientOptions( HydrusSerialisable.SerialisableBase ):
             'ffmpeg_subprocess_timeout' : 15,
             'media_viewer_tags_scrolling_behaviour' : CC.MEDIA_VIEWER_TAGS_SCROLLING_BEHAVIOUR_ONLY_PROPAGATE_AFTER_DELAY,
             'zoom_switch_command' : CAC.SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_ZOOM,
+            'page_sidebar_alignment' : CC.DIRECTION_LEFT,
         }
         
         self._dictionary[ 'floats' ] = {
@@ -662,7 +663,6 @@ class ClientOptions( HydrusSerialisable.SerialisableBase ):
             'command_palette_limit_history_results' : 10,
             'command_palette_limit_favourite_searches_results' : None,
             'treeview_alignment' : None,
-            'tag_view_alignment' : None,
         }
         
         #
