@@ -61,7 +61,7 @@ class PagesNotebookTreeModel( QC.QAbstractItemModel ):
                 
                 return page.GetPageKey()
                 
-            except:
+            except Exception as e:
                 
                 return None
                 
@@ -84,7 +84,7 @@ class PagesNotebookTreeModel( QC.QAbstractItemModel ):
             
             return ( 'page_key', page_key )
             
-        except:
+        except Exception as e:
             
             return ( 'page_key_repr', repr( page_key ) )
             

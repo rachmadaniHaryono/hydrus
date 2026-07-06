@@ -28,6 +28,7 @@ from hydrus.client.gui import ClientGUIReviewWindowsQuick
 from hydrus.client.gui import QtPorting as QP
 from hydrus.client.gui.canvas import ClientGUICanvas
 from hydrus.client.gui.pages import ClientGUIPagesCore
+from hydrus.client.gui.pages import ClientGUIPagesTreeView
 from hydrus.client.gui.pages import ClientGUIPageManager
 from hydrus.client.gui.pages import ClientGUINewPageChooser
 from hydrus.client.gui.pages import ClientGUIMediaResultsPanel
@@ -101,29 +102,26 @@ class Page( QW.QWidget ):
         self._pretty_status = ''
         self._pretty_status_override = ''
         
-        self._management_media_split = QW.QSplitter( self )
-        self._management_media_split.setOrientation( QC.Qt.Orientation.Horizontal )
+        self._sidebar_media_split = QW.QSplitter( self )
+        self._sidebar_media_split.setOrientation( QC.Qt.Orientation.Horizontal )
         
-        self._search_preview_split = QW.QSplitter( self._management_media_split )
-        self._search_preview_split.setOrientation( QC.Qt.Orientation.Vertical )
+        self._management_preview_split = QW.QSplitter( self._sidebar_media_split )
+        self._management_preview_split.setOrientation( QC.Qt.Orientation.Vertical )
         
         self._done_split_setups = False
         
-        self._sidebar = ClientGUISidebar.CreateSidebar( self._search_preview_split, self, self._page_manager )
+        self._sidebar_management_panel = ClientGUISidebar.CreateSidebar( self._management_preview_split, self, self._page_manager )
         
-        self._preview_panel = QW.QFrame( self._search_preview_split )
+        self._preview_panel = QW.QFrame( self._management_preview_split )
         self._preview_panel.setFrameStyle( QW.QFrame.Shape.Panel | QW.QFrame.Shadow.Sunken )
         self._preview_panel.setLineWidth( 2 )
         
         self._preview_canvas = ClientGUICanvas.CanvasPanelWithHovers( self._preview_panel, self._page_key, self._page_manager.GetLocationContext() )
         
-        self._sidebar.locationChanged.connect( self._preview_canvas.SetLocationContext )
+        self._sidebar_management_panel.locationChanged.connect( self._preview_canvas.SetLocationContext )
         
         # this is the only place we _do_ want to set the split as the parent of the thumbnail panel. doing it on init avoids init flicker
-        self._media_panel = self._sidebar.GetDefaultEmptyMediaResultsPanel( self._management_media_split )
-        
-        self._search_preview_split.addWidget( self._sidebar )
-        self._search_preview_split.addWidget( self._preview_panel )
+        self._media_panel = self._sidebar_management_panel.GetDefaultEmptyMediaResultsPanel( self._sidebar_media_split )
         
         vbox = QP.VBoxLayout( margin = 0 )
         
@@ -131,25 +129,21 @@ class Page( QW.QWidget ):
         
         self._preview_panel.setLayout( vbox )
         
-        self._RebuildManagementMediaLayout()
+        self._RebuildSidebarMediaLayout()
         
-        self._search_preview_split.widget( 0 ).setMinimumHeight( 180 )
-        self._search_preview_split.widget( 1 ).setMinimumHeight( 180 )
-        
-        self._search_preview_split.setStretchFactor( 0, 1 )
-        self._search_preview_split.setStretchFactor( 1, 0 )
+        self._RebuildManagementPreviewLayout()
         
         vbox = QP.VBoxLayout( margin = 0 )
         
-        QP.AddToLayout( vbox, self._management_media_split, CC.FLAGS_EXPAND_SIZER_BOTH_WAYS )
+        QP.AddToLayout( vbox, self._sidebar_media_split, CC.FLAGS_EXPAND_SIZER_BOTH_WAYS )
         
         self.setLayout( vbox )
         
-        self._handle_event_filter = QP.WidgetEventFilter( self._management_media_split.handle( 1 ) )
+        self._handle_event_filter = QP.WidgetEventFilter( self._sidebar_media_split.handle( 1 ) )
         self._handle_event_filter.EVT_LEFT_DCLICK( self.EventUnsplit )
         
-        self._search_preview_split._handle_event_filter = QP.WidgetEventFilter( self._search_preview_split.handle( 1 ) )
-        self._search_preview_split._handle_event_filter.EVT_LEFT_DCLICK( self.EventPreviewUnsplit )
+        self._management_preview_split._handle_event_filter = QP.WidgetEventFilter( self._management_preview_split.handle( 1 ) )
+        self._management_preview_split._handle_event_filter.EVT_LEFT_DCLICK( self.EventPreviewUnsplit )
         
         CG.client_controller.sub( self, 'SetSplitterPositions', 'set_splitter_positions' )
         
@@ -161,9 +155,7 @@ class Page( QW.QWidget ):
         
         self.SetSplitterPositions()
         
-        CG.client_controller.CallAfterQtSafe( self, self._RebuildManagementMediaLayout )
-        
-        self._search_preview_split.splitterMoved.connect( self._PreviewSplitterMoved )
+        self._management_preview_split.splitterMoved.connect( self._PreviewSplitterMoved )
         
         self._preview_canvas.launchMediaViewer.connect( self._PreviewCanvasWantsToLaunchMediaViewer )
         
@@ -176,7 +168,7 @@ class Page( QW.QWidget ):
         self._media_panel.focusMediaPaused.connect( self._preview_canvas.PauseMedia )
         self._media_panel.statusTextChanged.connect( self._SetPrettyStatus )
         
-        self._sidebar.ConnectMediaResultsPanelSignals( self._media_panel )
+        self._sidebar_management_panel.ConnectMediaResultsPanelSignals( self._media_panel )
         
     
     def _DoInitialMediaResultsLoadWork( self ):
@@ -260,7 +252,7 @@ class Page( QW.QWidget ):
                     self._pre_initialisation_media_results = []
                     
                 
-                CG.client_controller.CallAfterQtSafe( self, self._sidebar.Start )
+                CG.client_controller.CallAfterQtSafe( self, self._sidebar_management_panel.Start )
                 
             else:
                 
@@ -283,7 +275,7 @@ class Page( QW.QWidget ):
     
     def _PreviewSplitterMoved( self ):
         
-        sizes = self._search_preview_split.sizes()
+        sizes = self._management_preview_split.sizes()
         
         if len( sizes ) > 0:
             
@@ -318,36 +310,53 @@ class Page( QW.QWidget ):
             
         
     
-    def _RebuildManagementMediaLayout( self ):
+    def _RebuildSidebarMediaLayout( self ):
         
-        while self._management_media_split.count() > 0:
+        while self._sidebar_media_split.count() > 0:
             
-            self._management_media_split.widget( 0 ).setParent( None )
+            self._sidebar_media_split.widget( 0 ).setParent( None )
             
         
         alignment = CG.client_controller.new_options.GetInteger( 'page_sidebar_alignment' )
         
         if alignment == CC.DIRECTION_RIGHT:
             
-            self._management_media_split.addWidget( self._media_panel )
-            self._management_media_split.addWidget( self._search_preview_split )
+            self._sidebar_media_split.addWidget( self._media_panel )
+            self._sidebar_media_split.addWidget( self._management_preview_split )
             
         else:
             
-            self._management_media_split.addWidget( self._search_preview_split )
-            self._management_media_split.addWidget( self._media_panel )
+            self._sidebar_media_split.addWidget( self._management_preview_split )
+            self._sidebar_media_split.addWidget( self._media_panel )
             
         
         self._media_panel.setMinimumWidth( 120 )
-        self._search_preview_split.setMinimumWidth( 120 )
+        self._management_preview_split.setMinimumWidth( 120 )
         
-        search_preview_split_index = self._management_media_split.indexOf( self._search_preview_split )
+        search_preview_split_index = self._sidebar_media_split.indexOf( self._management_preview_split )
         
-        self._management_media_split.setStretchFactor( search_preview_split_index, 0 )
+        self._sidebar_media_split.setStretchFactor( search_preview_split_index, 0 )
         
-        media_panel_index = self._management_media_split.indexOf( self._media_panel )
+        media_panel_index = self._sidebar_media_split.indexOf( self._media_panel )
         
-        self._management_media_split.setStretchFactor( media_panel_index, 1 )
+        self._sidebar_media_split.setStretchFactor( media_panel_index, 1 )
+        
+    
+    def _RebuildManagementPreviewLayout( self ):
+        
+        while self._management_preview_split.count() > 0:
+            
+            self._management_preview_split.widget( 0 ).setParent( None )
+            
+        
+        self._management_preview_split.addWidget( self._sidebar_management_panel )
+        self._management_preview_split.addWidget( self._preview_panel )
+        
+        self._sidebar_management_panel.setMinimumHeight( 120 )
+        self._preview_panel.setMinimumHeight( 120 )
+        
+        self._management_preview_split.setStretchFactor( 0, 1 )
+        self._management_preview_split.setStretchFactor( 1, 0 )
         
     
     def _SwapMediaResultsPanel( self, new_panel: ClientGUIMediaResultsPanel.MediaResultsPanel ):
@@ -356,19 +365,19 @@ class Page( QW.QWidget ):
         If we give it the splitter as parent, you can get a frame of unusual layout flicker, usually a page-wide autocomplete input. Re-parent it here and we are fine.
         """
         
-        previous_sizes = self._management_media_split.sizes()
+        previous_sizes = self._sidebar_media_split.sizes()
         
         self._preview_canvas.ClearMedia()
         
         self._media_panel.ClearPageKey()
         
-        media_collect = self._sidebar.GetMediaCollect()
+        media_collect = self._sidebar_management_panel.GetMediaCollect()
         
         if media_collect.DoesACollect():
             
             new_panel.Collect( media_collect )
             
-            media_sort = self._sidebar.GetMediaSort()
+            media_sort = self._sidebar_management_panel.GetMediaSort()
             
             new_panel.Sort( media_sort )
             
@@ -379,7 +388,7 @@ class Page( QW.QWidget ):
         # note focus isn't on the thumb panel but some innerwidget scroll gubbins
         had_focus_before = ClientGUIFunctions.IsQtAncestor( QW.QApplication.focusWidget(), old_panel )
         
-        if new_panel.parentWidget() == self._management_media_split:
+        if new_panel.parentWidget() == self._sidebar_media_split:
             
             # ideally, this does not occur. we always want to replace and reduce flicker
             
@@ -388,29 +397,29 @@ class Page( QW.QWidget ):
             
         else:
             
-            index_of_current_page = self._management_media_split.indexOf( old_panel )
+            index_of_current_page = self._sidebar_media_split.indexOf( old_panel )
             
             if index_of_current_page == -1:
                 
                 # this should not occur, but let's handle it anyway
                 
-                self._management_media_split.addWidget( new_panel )
+                self._sidebar_media_split.addWidget( new_panel )
                 
             else:
                 
                 # this sets parent of new panel to self and sets parent of old panel to None
                 # rumao, it doesn't work if new_panel is already our child
-                self._management_media_split.replaceWidget( index_of_current_page, new_panel )
+                self._sidebar_media_split.replaceWidget( index_of_current_page, new_panel )
                 
             
         
         self._media_panel.setMinimumWidth( 120 )
         
-        index_of_new_page = self._management_media_split.indexOf( self._media_panel )
+        index_of_new_page = self._sidebar_media_split.indexOf( self._media_panel )
         
-        self._management_media_split.setStretchFactor( index_of_new_page, 1 )
+        self._sidebar_media_split.setStretchFactor( index_of_new_page, 1 )
         
-        self._management_media_split.setSizes( previous_sizes )
+        self._sidebar_media_split.setSizes( previous_sizes )
         
         self._ConnectMediaResultsPanelSignals()
         
@@ -444,7 +453,7 @@ class Page( QW.QWidget ):
     
     def ActivateFavouriteSearch( self, fav_search: tuple[ str, str ] ):
         
-        self._sidebar.ActivateFavouriteSearch( fav_search )
+        self._sidebar_management_panel.ActivateFavouriteSearch( fav_search )
         
     
     def AddMediaResults( self, media_results ):
@@ -496,19 +505,19 @@ class Page( QW.QWidget ):
     
     def CheckAbleToClose( self, for_session_close = False ):
         
-        self._sidebar.CheckAbleToClose( for_session_close = for_session_close )
+        self._sidebar_management_panel.CheckAbleToClose( for_session_close = for_session_close )
         
     
     def CleanBeforeClose( self ):
         
-        self._sidebar.CleanBeforeClose()
+        self._sidebar_management_panel.CleanBeforeClose()
         
         self._media_panel.SetFocusedMedia( None )
         
     
     def CleanBeforeDestroy( self ):
         
-        self._sidebar.CleanBeforeDestroy()
+        self._sidebar_management_panel.CleanBeforeDestroy()
         
         self._preview_canvas.CleanBeforeDestroy()
         
@@ -519,19 +528,19 @@ class Page( QW.QWidget ):
     
     def EnterPredicates( self, predicates: list[ ClientSearchPredicate.Predicate ] ):
         
-        self._sidebar.EnterPredicates( predicates )
+        self._sidebar_management_panel.EnterPredicates( predicates )
         
     
     def EventPreviewUnsplit( self, event ):
         
-        QP.Unsplit( self._search_preview_split, self._preview_panel )
+        QP.Unsplit( self._management_preview_split, self._preview_panel )
         
         self._media_panel.SetFocusedMedia( None )
         
     
     def EventUnsplit( self, event ):
         
-        QP.Unsplit( self._management_media_split, self._search_preview_split )
+        QP.Unsplit( self._sidebar_media_split, self._management_preview_split )
         
         self._media_panel.SetFocusedMedia( None )
         
@@ -559,7 +568,7 @@ class Page( QW.QWidget ):
     
     def GetCollect( self ):
         
-        return self._sidebar.GetMediaCollect()
+        return self._sidebar_management_panel.GetMediaCollect()
         
     
     def GetHashes( self ):
@@ -586,7 +595,7 @@ class Page( QW.QWidget ):
     
     def GetSidebar( self ):
         
-        return self._sidebar
+        return self._sidebar_management_panel
         
     
     # used by autocomplete
@@ -659,7 +668,7 @@ class Page( QW.QWidget ):
         
         if self._initialised:
             
-            return self._sidebar.GetPageState()
+            return self._sidebar_management_panel.GetPageState()
             
         else:
             
@@ -730,11 +739,11 @@ class Page( QW.QWidget ):
         
         hpos = HC.options[ 'hpos' ]
         
-        sizes = self._management_media_split.sizes()
+        sizes = self._sidebar_media_split.sizes()
         
         try:
             
-            sidebar_index = self._management_media_split.indexOf( self._search_preview_split )
+            sidebar_index = self._sidebar_media_split.indexOf( self._management_preview_split )
             
             if sidebar_index != -1:
                 
@@ -748,7 +757,7 @@ class Page( QW.QWidget ):
         
         vpos = HC.options[ 'vpos' ]
         
-        sizes = self._search_preview_split.sizes()
+        sizes = self._management_preview_split.sizes()
         
         if len( sizes ) > 1:
             
@@ -763,7 +772,7 @@ class Page( QW.QWidget ):
     
     def GetSort( self ):
         
-        return self._sidebar.GetMediaSort()
+        return self._sidebar_management_panel.GetMediaSort()
         
     
     def GetTotalFileSize( self ):
@@ -842,7 +851,7 @@ class Page( QW.QWidget ):
     
     def PageHidden( self ):
         
-        self._sidebar.PageHidden()
+        self._sidebar_management_panel.PageHidden()
         self._media_panel.PageHidden()
         self._preview_canvas.PageHidden()
         
@@ -856,18 +865,23 @@ class Page( QW.QWidget ):
             self._done_split_setups = True
             
         
-        self._sidebar.PageShown()
+        self._sidebar_management_panel.PageShown()
         self._media_panel.PageShown()
         self._preview_canvas.PageShown()
         
         self._DoInitialMediaResultsLoadWork()
         
     
+    def RebuildSidebarMediaLayout( self ):
+        
+        self._RebuildSidebarMediaLayout()
+        
+    
     def RefreshQuery( self ):
         
         if self._initialised:
             
-            self._sidebar.RefreshQuery()
+            self._sidebar_management_panel.RefreshQuery()
             
         
     
@@ -899,7 +913,7 @@ class Page( QW.QWidget ):
     
     def SetSearchFocus( self ):
         
-        self._sidebar.SetSearchFocus()
+        self._sidebar_management_panel.SetSearchFocus()
         
     
     def SetSplitterPositions( self, hpos = None, vpos = None ):
@@ -918,7 +932,7 @@ class Page( QW.QWidget ):
             vpos = HC.options[ 'vpos' ]
             
         
-        total_sum = sum( self._search_preview_split.sizes() )
+        total_sum = sum( self._management_preview_split.sizes() )
         
         if total_sum == 0:
             
@@ -926,9 +940,9 @@ class Page( QW.QWidget ):
             
         
         # handle if it was hidden before
-        self._search_preview_split.setVisible( True )
+        self._management_preview_split.setVisible( True )
         
-        total_sum = sum( self._management_media_split.sizes() )
+        total_sum = sum( self._sidebar_media_split.sizes() )
         
         if hpos < 0:
             
@@ -943,11 +957,11 @@ class Page( QW.QWidget ):
         
         sizes = []
         
-        for i in range( self._management_media_split.count() ):
+        for i in range( self._sidebar_media_split.count() ):
             
-            w = self._management_media_split.widget( i )
+            w = self._sidebar_media_split.widget( i )
             
-            if w == self._search_preview_split:
+            if w == self._management_preview_split:
                 
                 sizes.append( sidebar_width )
                 
@@ -957,31 +971,31 @@ class Page( QW.QWidget ):
                 
             
         
-        self._management_media_split.setSizes( sizes )
+        self._sidebar_media_split.setSizes( sizes )
         
         # handle if it was hidden before
         self._preview_panel.setVisible( True )
         
         if vpos < 0:
             
-            self._search_preview_split.setSizes( [ total_sum + vpos, -vpos ] )
+            self._management_preview_split.setSizes( [ total_sum + vpos, -vpos ] )
             
         else:
             
-            self._search_preview_split.setSizes( [ vpos, total_sum - vpos ] )
+            self._management_preview_split.setSizes( [ vpos, total_sum - vpos ] )
             
         
         if HC.options[ 'hide_preview' ]:
             
-            CG.client_controller.CallAfterQtSafe( self, QP.Unsplit, self._search_preview_split, self._preview_panel )
+            CG.client_controller.CallAfterQtSafe( self, QP.Unsplit, self._management_preview_split, self._preview_panel )
             
         
     
     def ShowHideSplit( self ):
         
-        if QP.SplitterVisibleCount( self._management_media_split ) > 1:
+        if QP.SplitterVisibleCount( self._sidebar_media_split ) > 1:
             
-            QP.Unsplit( self._management_media_split, self._search_preview_split )
+            QP.Unsplit( self._sidebar_media_split, self._management_preview_split )
             
             self.SetMediaFocus()
             
@@ -997,7 +1011,7 @@ class Page( QW.QWidget ):
     
     def SetSort( self, media_sort, do_sort = True ):
         
-        self._sidebar.SetMediaSort( media_sort, do_sort = do_sort )
+        self._sidebar_management_panel.SetMediaSort( media_sort, do_sort = do_sort )
         
     
     def Start( self ):
@@ -1013,7 +1027,7 @@ class Page( QW.QWidget ):
             self._initialised = True
             
             # do this 'after' so on a long session setup, it all boots once session loaded
-            CG.client_controller.CallAfterQtSafe( self, self._sidebar.Start )
+            CG.client_controller.CallAfterQtSafe( self, self._sidebar_management_panel.Start )
             
         
     
@@ -1024,7 +1038,7 @@ class Page( QW.QWidget ):
     
     def REPEATINGPageUpdate( self ):
         
-        self._sidebar.REPEATINGPageUpdate()
+        self._sidebar_management_panel.REPEATINGPageUpdate()
         
     
 
@@ -1122,7 +1136,7 @@ def ShowReasonsAndPagesConfirmationDialog( win: QW.QWidget, reasons_and_pages, m
         
     
 
-class PagesNotebook( QP.TabWidgetWithDnD ):
+class PagesNotebook( ClientGUIPagesTreeView.TabWidgetWithDnD ):
     
     freshSessionLoaded = QC.Signal( ClientGUISession.GUISessionContainer )
     dataChanged = QC.Signal( int, int )
@@ -1133,10 +1147,13 @@ class PagesNotebook( QP.TabWidgetWithDnD ):
         
         super().__init__( parent )
         
+        # TODO: No, these need to be managed by the parent, not registered by the child
+        # on DnD or whatever, this stuff needs to move around
         if isinstance( parent, PagesNotebook ):
             
             self.layoutChanged.connect( parent.layoutChanged.emit )
             self.selectionChanged.connect( parent.selectionChanged.emit )
+            
         
         direction = CG.client_controller.new_options.GetInteger( 'notebook_tab_alignment' )
         
@@ -1752,6 +1769,7 @@ class PagesNotebook( QP.TabWidgetWithDnD ):
                 self.setTabToolTip( index, full_page_name )
                 
             
+        
         self.dataChanged.emit( index, index )
         
     
@@ -2505,10 +2523,12 @@ class PagesNotebook( QP.TabWidgetWithDnD ):
         
         self._ClosePage( index )
         
+    
     def DuplicatePage( self, index ):
         
         self._DuplicatePage( index )
         
+    
     def RenamePage( self, index ):
         
         self._RenamePage( index )
@@ -2601,20 +2621,14 @@ class PagesNotebook( QP.TabWidgetWithDnD ):
         return False
         
     
-    def RebuildManagementMediaLayout( self ):
+    def RebuildSidebarMediaLayout( self ):
         
         for page in self._GetPages():
             
-            if isinstance( page, PagesNotebook ):
-                
-                page.RebuildManagementMediaLayout()
-                
-            else:
-                
-                page._RebuildManagementMediaLayout()
-                
+            page.RebuildSidebarMediaLayout()
             
         
+    
     def UpdateTabVisibility( self ):
         
         tabs_are_hidden = CG.client_controller.new_options.GetBoolean( 'treeview_hides_tabs' ) and CG.client_controller.new_options.GetNoneableInteger( 'treeview_alignment' ) is not None
@@ -3848,6 +3862,7 @@ class PagesNotebook( QP.TabWidgetWithDnD ):
         
         CG.client_controller.pub( 'notify_page_change' )
         self.selectionChanged.emit( self, index )
+        
     
     def PageShown( self ):
         

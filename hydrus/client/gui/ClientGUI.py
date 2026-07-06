@@ -76,9 +76,10 @@ from hydrus.client.gui.networking import ClientGUILogin
 from hydrus.client.gui.networking import ClientGUINetwork
 from hydrus.client.gui.pages import ClientGUIPageManager
 from hydrus.client.gui.pages import ClientGUIPages
+from hydrus.client.gui.pages import ClientGUIPagesTreeModel
+from hydrus.client.gui.pages import ClientGUIPagesTreeView
 from hydrus.client.gui.pages import ClientGUISession
 from hydrus.client.gui.panels import ClientGUIFilesPhysicalStoragePanels
-from hydrus.client.gui.pages import ClientGUIPagesTreeModel
 from hydrus.client.gui.panels import ClientGUILocalFileImports
 from hydrus.client.gui.panels import ClientGUIScrolledPanels
 from hydrus.client.gui.panels import ClientGUIScrolledPanelsReview
@@ -556,13 +557,13 @@ class FrameGUI( CAC.ApplicationCommandProcessorMixin, ClientGUITopLevelWindows.M
         
         self._notebook = ClientGUIPages.PagesNotebook( self, 'top page notebook' )
         
-        self._tabs_tree_view = QP.TreeViewWithDnD( self )
+        self._tabs_tree_view = ClientGUIPagesTreeView.TreeViewWithDnD( self )
         self._tabs_tree_model = ClientGUIPagesTreeModel.PagesNotebookTreeModel( self._notebook, self._tabs_tree_view )
         self._tabs_tree_view.setModel( self._tabs_tree_model )
-        self._tabs_tree_sidebar = QP.TreeViewWithControls( self._tabs_tree_view )
+        self._tabs_tree_sidebar = ClientGUIPagesTreeView.TreeViewWithControls( self._tabs_tree_view )
         
         self._tabs_tree_sidebar.widgetAlignmentChanged.connect( self._RebuildMainFrameLayout )
-        self._tabs_tree_sidebar.tagBarAlignmentChanged.connect( self._notebook.RebuildManagementMediaLayout )
+        self._tabs_tree_sidebar.tagBarAlignmentChanged.connect( self._notebook.RebuildSidebarMediaLayout )
         self._tabs_tree_sidebar.tabBarVisibilityChanged.connect( self._notebook.UpdateTabVisibility )
         self._tabs_tree_sidebar.treeSidebarCollapsibilityChanged.connect( self._UpdateTreeSidebarCollapsibility )
         
