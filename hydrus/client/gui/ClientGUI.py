@@ -5426,11 +5426,8 @@ ATTACH "client.mappings.db" as external_mappings;'''
                 self._vertical_splitter.addWidget( self._notebook )
                 
                 sizes = CG.client_controller.new_options.GetIntegerList( 'tab_tree_splitter_sizes_left' )
-                self._vertical_splitter.widget( 0 ).setMinimumWidth( 100 )
-                self._vertical_splitter.setSizes( sizes )
                 
-                self._vertical_splitter.setCollapsible( 0, CG.client_controller.new_options.GetBoolean( 'treeview_sidebar_can_collapse' ) )
-                self._vertical_splitter.setCollapsible( 1, False )
+                self._vertical_splitter.setSizes( sizes )
                 
             else:
                 
@@ -5438,15 +5435,20 @@ ATTACH "client.mappings.db" as external_mappings;'''
                 self._vertical_splitter.addWidget( self._tabs_tree_sidebar )
                 
                 sizes = CG.client_controller.new_options.GetIntegerList( 'tab_tree_splitter_sizes_right' )
-                self._vertical_splitter.widget( 1 ).setMinimumWidth( 100 )
+                
                 self._vertical_splitter.setSizes( sizes )
                 
-                self._vertical_splitter.setCollapsible( 0, False )
-                self._vertical_splitter.setCollapsible( 1, CG.client_controller.new_options.GetBoolean( 'treeview_sidebar_can_collapse' ) )
-                
             
-            self._vertical_splitter.setStretchFactor( 0, 0 )
-            self._vertical_splitter.setStretchFactor( 1, 1 )
+            tabs_tree_index = self._vertical_splitter.indexOf( self._tabs_tree_sidebar )
+            notebook_index = self._vertical_splitter.indexOf( self._notebook )
+            
+            self._vertical_splitter.setCollapsible( notebook_index, False )
+            self._vertical_splitter.setCollapsible( tabs_tree_index, CG.client_controller.new_options.GetBoolean( 'treeview_sidebar_can_collapse' ) )
+            
+            self._vertical_splitter.setStretchFactor( tabs_tree_index, 0 )
+            self._vertical_splitter.setStretchFactor( notebook_index, 1 )
+            
+            self._tabs_tree_sidebar.setMinimumWidth( 100 )
             
             self._controller.CallLaterQtSafe( self, 0.05, 'expand treeview', self._tabs_tree_sidebar.expandToDepth, 2 )
             

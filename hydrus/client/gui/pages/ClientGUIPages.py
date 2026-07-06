@@ -312,6 +312,27 @@ class Page( QW.QWidget ):
     
     def _RebuildSidebarMediaLayout( self ):
         
+        sizes = self._sidebar_media_split.sizes()
+        
+        panels_to_sizes = {}
+        
+        try:
+            
+            for panel in [ self._media_panel, self._management_preview_split ]:
+                
+                panel_index = self._sidebar_media_split.indexOf( panel )
+                
+                if panel_index != -1:
+                    
+                    panels_to_sizes[ panel ] = sizes[ panel_index ]
+                    
+                
+            
+        except Exception as e:
+            
+            pass
+            
+        
         while self._sidebar_media_split.count() > 0:
             
             self._sidebar_media_split.widget( 0 ).setParent( None )
@@ -321,17 +342,27 @@ class Page( QW.QWidget ):
         
         if alignment == CC.DIRECTION_RIGHT:
             
-            self._sidebar_media_split.addWidget( self._media_panel )
-            self._sidebar_media_split.addWidget( self._management_preview_split )
+            panel_order = [ self._media_panel, self._management_preview_split ]
             
         else:
             
-            self._sidebar_media_split.addWidget( self._management_preview_split )
-            self._sidebar_media_split.addWidget( self._media_panel )
+            panel_order = [ self._management_preview_split, self._media_panel ]
             
         
-        self._media_panel.setMinimumWidth( 120 )
-        self._management_preview_split.setMinimumWidth( 120 )
+        new_sizes = []
+        
+        for panel in panel_order:
+            
+            self._sidebar_media_split.addWidget( panel )
+            
+            panel.setMinimumWidth( 120 )
+            
+            size = panels_to_sizes.get( panel, 120 )
+            
+            new_sizes.append( size )
+            
+        
+        self._sidebar_media_split.setSizes( new_sizes )
         
         search_preview_split_index = self._sidebar_media_split.indexOf( self._management_preview_split )
         
