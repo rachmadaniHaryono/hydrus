@@ -104,7 +104,7 @@ def GetFFMPEGInfoLines( path: str, video_stream_mapping_to_count_frames_manually
     
     try:
         
-        ( stdout, stderr ) = HydrusSubprocess.RunSubprocess( cmd )
+        ( stdout, stderr ) = HydrusSubprocess.RunSubprocess( cmd, timeout = FFMPEG_SUBPROCESS_TIMEOUT )
         
     except HydrusExceptions.SubprocessTimedOut:
         
@@ -250,86 +250,4 @@ def HandleFFMPEGNoContentAndGenerateException( path, stdout, stderr ):
         
     
     return HydrusExceptions.DataMissing( 'Cannot interact with media because FFMPEG did not return any content.' )
-    
-
-def RenderImageToImagePath( path, temp_image_path ):
-    
-    ffmpeg_path = GetCurrentFFMPEGPath()
-    
-    # -y to overwrite the temp path
-    
-    if temp_image_path.endswith( '.jpg' ):
-        
-        # '-q:v 1' does high quality
-        cmd = [ ffmpeg_path, "-xerror", '-y', "-i", path, "-q:v", "1", temp_image_path ]
-        
-    else:
-        
-        cmd = [ ffmpeg_path, "-xerror", '-y', "-i", path, temp_image_path ]
-        
-    
-    HydrusData.CheckProgramIsNotShuttingDown()
-    
-    try:
-        
-        HydrusSubprocess.RunSubprocess( cmd, timeout = FFMPEG_SUBPROCESS_TIMEOUT )
-        
-    except HydrusExceptions.SubprocessTimedOut:
-        
-        raise HydrusExceptions.DamagedOrUnusualFileException( 'ffmpeg could not render it quick enough!' )
-        
-    except FileNotFoundError as e:
-        
-        raise HandleFFMPEGFileNotFoundAndGenerateException( e, path )
-        
-    
-
-def RenderImageToRawRGBABytes( path ):
-    
-    ffmpeg_path = GetCurrentFFMPEGPath()
-    
-    # no dimensions here, so called is responsible for reshaping numpy array or whatever
-    
-    cmd = [ ffmpeg_path, "-xerror", '-i', path, '-f', 'rawvideo', '-pix_fmt', 'rgba', '-' ]
-    
-    HydrusData.CheckProgramIsNotShuttingDown()
-    
-    try:
-        
-        ( stdout, stderr ) = HydrusSubprocess.RunSubprocess( cmd, timeout = FFMPEG_SUBPROCESS_TIMEOUT, bufsize = 1024 * 512, text = False )
-        
-    except HydrusExceptions.SubprocessTimedOut:
-        
-        raise HydrusExceptions.DamagedOrUnusualFileException( 'ffmpeg could not render it quick enough!' )
-        
-    except FileNotFoundError as e:
-        
-        raise HandleFFMPEGFileNotFoundAndGenerateException( e, path )
-        
-    
-    return stdout
-    
-
-def RenderImageToPNGBytes( path ):
-    
-    ffmpeg_path = GetCurrentFFMPEGPath()
-    
-    cmd = [ ffmpeg_path, "-xerror", '-i', path, '-f', 'image2pipe', '-vcodec', 'png', '-' ]
-    
-    HydrusData.CheckProgramIsNotShuttingDown()
-    
-    try:
-        
-        ( stdout, stderr ) = HydrusSubprocess.RunSubprocess( cmd, timeout = FFMPEG_SUBPROCESS_TIMEOUT, bufsize = 1024 * 512, text = False )
-        
-    except HydrusExceptions.SubprocessTimedOut:
-        
-        raise HydrusExceptions.DamagedOrUnusualFileException( 'ffmpeg could not render it quick enough!' )
-        
-    except FileNotFoundError as e:
-        
-        raise HandleFFMPEGFileNotFoundAndGenerateException( e, path )
-        
-    
-    return stdout
     

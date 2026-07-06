@@ -2,7 +2,7 @@ import re
 
 from hydrus.core import HydrusExceptions
 
-def GetAudioStreamLines( lines ):
+def GetAudioStreamLines( lines: list[ str ] ):
     
     # the ^\sStream is to exclude the 'title' line, when it exists, includes the string 'Audio: ', ha ha
     # Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 192 kb/s
@@ -11,7 +11,27 @@ def GetAudioStreamLines( lines ):
     return audio_lines
     
 
-def GetVideoStreamLines( lines ):
+def GetImageStreamLines( lines: list[ str ] ):
+    
+    video_lines = GetVideoStreamLines( lines )
+    
+    def looks_like_image_stream( line ):
+        
+        return 'Video: png' in line or 'Video: jpg' in line
+        
+    
+    def looks_like_attached_pic( line ):
+        
+        return 'attached pic' in line or 'attached_pic' in line
+        
+    
+    # Stream #0:1: Video: png, rgb24(pc, gbr/unknown/unknown), 300x300 [SAR 2835:2835 DAR 1:1], 90k tbr, 90k tbn (attached pic)
+    image_lines = [ line for line in video_lines if looks_like_image_stream( line ) or looks_like_attached_pic( line ) ]
+    
+    return image_lines
+    
+
+def GetVideoStreamLines( lines: list[ str ] ):
     """
     This returns single-frame pngs and stuff!
     """
