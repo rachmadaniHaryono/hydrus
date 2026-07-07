@@ -226,17 +226,23 @@ class CanvasFrame( CAC.ApplicationCommandProcessorMixin, ClientGUITopLevelWindow
                 
                 ClientGUIMediaControls.FlipMute( ClientGUIMediaControls.AUDIO_GLOBAL )
                 
-            elif action == CAC.SIMPLE_WINDOW_AUDIO_MUTE:
+            elif action == CAC.SIMPLE_PER_PLAYER_AUDIO_MUTE:
                 
-                self._canvas_window.UpdateMediaWindowMute( True )
+                media_container = self._canvas_window.GetMediaContainer()
                 
-            elif action == CAC.SIMPLE_WINDOW_AUDIO_MUTE_FLIP:
+                media_container.SetPerPlayerMuteState( True )
                 
-                self._canvas_window.FlipMediaWindowMute()
+            elif action == CAC.SIMPLE_PER_PLAYER_AUDIO_MUTE_FLIP:
                 
-            elif action == CAC.SIMPLE_WINDOW_AUDIO_MUTE_UNMUTE:
+                media_container = self._canvas_window.GetMediaContainer()
                 
-                self._canvas_window.UpdateMediaWindowMute( False )
+                media_container.FlipPerPlayerMuteState()
+                
+            elif action == CAC.SIMPLE_PER_PLAYER_AUDIO_UNMUTE:
+                
+                media_container = self._canvas_window.GetMediaContainer()
+                
+                media_container.SetPerPlayerMuteState( False )
                 
             elif action == CAC.SIMPLE_GLOBAL_PROFILE_MODE_FLIP:
                 
