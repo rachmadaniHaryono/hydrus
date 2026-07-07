@@ -1313,7 +1313,7 @@ def ShowFileEmbeddedMetadata( win: QW.QWidget, media: ClientMediaSingle.MediaSin
                 
             except HydrusExceptions.LimitedSupportFileException:
                 
-                file_text = 'Could not read PDF metadata!'
+                pass # leave it as None
                 
             
         elif mime in HC.FILES_THAT_CAN_HAVE_EXIF or mime in HC.FILES_THAT_CAN_HAVE_HUMAN_READABLE_EMBEDDED_METADATA:

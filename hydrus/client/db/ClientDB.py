@@ -8307,6 +8307,10 @@ class DB( HydrusDB.HydrusDB ):
                     
                     self.modules_files_maintenance_queue.AddJobs( hash_ids, ClientFilesMaintenance.REGENERATE_FILE_DATA_JOB_FORCE_THUMBNAIL )
                     
+                    hash_ids = self._STS( self._Execute( 'SELECT hash_id FROM {} CROSS JOIN files_info USING ( hash_id ) WHERE mime IN {};'.format( temp_hash_ids_table_name, HydrusLists.SplayListForDB( [ HC.APPLICATION_PDF ] ) ) ) )
+                    
+                    self.modules_files_maintenance_queue.AddJobs( hash_ids, ClientFilesMaintenance.REGENERATE_FILE_DATA_JOB_FILE_HAS_HUMAN_READABLE_EMBEDDED_METADATA )
+                    
                 
             except Exception as e:
                 
