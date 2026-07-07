@@ -3024,7 +3024,7 @@ class CanvasWithHovers( Canvas ):
             next_check_period_ms = max( 100, min( int( hide_time_ms / 5 ), 250 ) )
             
         
-        mouse_currently_shown = self.cursor().shape() == QC.Qt.CursorShape.ArrowCursor
+        mouse_currently_shown = self.cursor().shape() != QC.Qt.CursorShape.BlankCursor
         
         if should_be_hidden and mouse_currently_shown:
             
@@ -3115,7 +3115,7 @@ class CanvasWithHovers( Canvas ):
         # due to the mouse setPos below, the event pos can get funky I think due to out of order coordinate setting events, so we'll poll current value directly
         event_pos = self.mapFromGlobal( ClientGUIFunctions.GetMousePos() )
         
-        mouse_currently_shown = self.cursor().shape() == QC.Qt.CursorShape.ArrowCursor
+        mouse_currently_shown = self.cursor().shape() != QC.Qt.CursorShape.BlankCursor
         
         has_moved = event_pos != self._last_motion_pos
         
