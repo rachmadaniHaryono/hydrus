@@ -72,7 +72,7 @@ Running the program from source takes a little extra first-time setup, but it al
         
         If you are uncertain whether you have FFMPEG, you either A) perhaps do not, or B) probably do, but it is an older 'LTS' version. Do not overwrite any system FFMPEG if you aren't sure of what you are doing.
         
-        If you want the quick and easy fix, just go [here](https://github.com/BtbN/FFmpeg-Builds/releases) and download the `linux64 gpl non-shared`. Extract the big 'ffmpeg' executable to your install_dir/bin folder.
+        If you want the quick and easy fix, just go [here](https://github.com/BtbN/FFmpeg-Builds/releases) and download the `linux64 gpl non-shared`. Extract the big 'ffmpeg' executable to your install_dir/lib/bin folder.
         
         I am probably just going to bundle a nice new version of FFMPEG in the Linux build in future.
         
