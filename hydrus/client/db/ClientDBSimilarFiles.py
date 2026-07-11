@@ -182,6 +182,32 @@ class ClientDBSimilarFiles( ClientDBModule.ClientDBModule ):
             
         
     
+    def _DeltaShapeSearchCacheNumbersRemoveFiles( self, hash_ids: collections.abc.Collection[ int ] ):
+        
+        with self._MakeTemporaryIntegerTable( hash_ids, 'hash_id' ) as temp_table_name:
+            
+            results = self._STL( self._Execute( f'SELECT searched_distance FROM {temp_table_name} CROSS JOIN shape_search_cache USING ( hash_id );' ) )
+            
+            counts = collections.Counter()
+            
+            counts.update( results )
+            
+        
+        if len( counts ) > 0:
+            
+            for ( searched_distance, count ) in counts.items():
+                
+                self._DeltaShapeSearchCacheNumbers( searched_distance, - count )
+                
+            
+            return sum( counts.values() )
+            
+        else:
+            
+            return 0
+            
+        
+    
     def _GenerateBranch( self, job_status, parent_id, perceptual_hash_id, perceptual_hash, children ):
         
         process_queue = collections.deque()
@@ -909,9 +935,13 @@ class ClientDBSimilarFiles( ClientDBModule.ClientDBModule ):
     
     def ResetSearch( self, hash_ids ):
         
+        num_done = self._DeltaShapeSearchCacheNumbersRemoveFiles( hash_ids )
+        
         self._ExecuteMany( 'UPDATE shape_search_cache SET searched_distance = ? WHERE hash_id = ?;', ( ( -1, hash_id ) for hash_id in hash_ids ) )
         
-        self.RegenerateSearchCacheNumbers()
+        self._DeltaShapeSearchCacheNumbers( -1, num_done )
+        
+        self._cursor_transaction_wrapper.pub_after_job( 'notify_file_potential_search_reset' )
         
     
     def ResetSearchForAll( self ):

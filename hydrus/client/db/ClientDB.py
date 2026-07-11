@@ -8322,6 +8322,28 @@ class DB( HydrusDB.HydrusDB ):
                 
             
         
+        if version == 678:
+            
+            try:
+                
+                table_name = 'main.confirmed_alternate_pairs'
+                columns = [ 'larger_media_id', 'smaller_media_id' ]
+                
+                if not self._IdealIndexExists( table_name, columns ):
+                    
+                    self._CreateIndex( table_name, columns )
+                    
+                
+            except Exception as e:
+                
+                HydrusData.PrintException( e )
+                
+                message = 'Failed to create a new index!  This is not super important, but hydev would be interested in seeing the error that was printed to the log.'
+                
+                self.pub_initial_message( message )
+                
+            
+        
         #
         
         self._controller.frame_splash_status.SetTitleText( 'updated db to v{}'.format( HydrusNumbers.ToHumanInt( version + 1 ) ) )
