@@ -31,7 +31,7 @@ Once the API is running, go to its entry in _services->review services_. Each ex
 * [Hydrus Web](https://github.com/floogulinc/hydrus-web): A web client for hydrus with an advanced but also phone-friendly interface.
 * [Hydrui](https://hydrui.dev) [(Repo)](https://github.com/hydrui/hydrui): A web client for hydrus with an interface similar to the regular client.
 * [hyAway](https://hyaway.com/) [(Repo)](https://github.com/hyaway/hyaway): A web client for hydrus, including browsing your current session. Includes swipe archive/delete filtering.
-* [hydit](https://github.com/BashCooler/hydit): Lightweight, feature-rich Hydrus client for Android.
+* [hydit](https://github.com/BashCooler/hydit): Lightweight, feature-rich hydrus client for Android.
 * [kaimen](https://github.com/Dry-Leaf/kaimen): Show hydrus searches in your file explorer using virtual FUSE mounts.
 * [Hybooru](https://github.com/funmaker/Hybooru): A read-only booru-like web wrapper for hydrus.
 * [Anime Boxes](https://www.animebox.es/): A booru browser, now supports adding your client as a 'Hydrus Server'.
