@@ -1563,6 +1563,8 @@ class HistoryPanel( QW.QWidget ):
 
 # TODO: Although this guy adds some neat features, it ultimately increases the coupling problem
 # If we want a modular future, we want to drag the splitters out of the panels to a LayoutOverseer and all subcomponents need to be their own clear thing
+
+# TODO: when you go through an options cycle, this guy shrinks in width width, so some layout flag is missing maybe?
 class TreeViewWithControls( QW.QWidget ):
     
     widgetAlignmentChanged = QC.Signal()
@@ -1640,6 +1642,7 @@ class TreeViewWithControls( QW.QWidget ):
             self._tree.currentPagePathChanged.connect( self.PopulateHistoryIfOpen )
             
         
+        # TODO: change this to a cogiconbutton with the menu item stuff 
         self._controls_button = ClientGUICommon.IconButton( self._controls, CC.global_icons().cog, self._ShowCogMenu )
         self._controls_button.setToolTip( ClientGUIFunctions.WrapToolTip( 'Tree view controls' ) )
         
@@ -1724,6 +1727,8 @@ class TreeViewWithControls( QW.QWidget ):
     
     def _AddBooleanMenuAction( self, menu, label: str, option_name: str, tooltip: str = None ):
         
+        # TODO: move this out, since it is static, and probably move it to normal menu code
+        
         action = menu.addAction( label )
         action.setCheckable( True )
         action.setChecked( CG.client_controller.new_options.GetBoolean( option_name ) )
@@ -1737,68 +1742,69 @@ class TreeViewWithControls( QW.QWidget ):
         return action
         
     
-    def _HideFilterPanel( self ):
+    def _CurrentPagePathClicked( self, event ):
         
-        self._filter_panel.hide()
-        self._QueueFloatingPanelReposition()
-        
-    
-    def _HideHistoryPanel( self ):
-        
-        self._history_panel.hide()
-        self._QueueFloatingPanelReposition()
-        
-    
-    def _QueueFloatingPanelReposition( self ):
-        
-        if self._queued_floating_panel_reposition:
+        if event.button() == QC.Qt.MouseButton.LeftButton:
             
+            if hasattr( self._tree, 'RevealCurrentSelection' ):
+                
+                self._tree.RevealCurrentSelection()
+                
+            
+            event.accept()
             return
             
         
-        self._queued_floating_panel_reposition = True
+        if event.button() == QC.Qt.MouseButton.RightButton:
+            
+            if hasattr( self._tree, 'ShowContextMenuForCurrentSelection' ):
+                
+                self._tree.ShowContextMenuForCurrentSelection()
+                
+            
+            event.accept()
+            return
+            
         
-        QC.QTimer.singleShot( 0, self._RepositionFloatingPanels )
+        event.ignore()
         
     
-    def _RepositionFloatingPanels( self ):
+    def _EmitAlignmentToggle( self, direction: int ):
         
-        self._queued_floating_panel_reposition = False
+        CG.client_controller.new_options.SetNoneableInteger( 'treeview_alignment', direction )
         
-        if self._history_panel.isVisible():
-            
-            self._PositionPanelNearWidget( self._history_panel, self._history_button, [ self._filter_panel ] )
-            
+        self.widgetAlignmentChanged.emit()
         
-        if self._filter_panel.isVisible():
+        if self._on_toggle_alignment is not None:
             
-            self._PositionPanelNearWidget( self._filter_panel, self._filter_button, [ self._history_panel ] )
+            self._on_toggle_alignment( direction )
             
         
     
-    def ApplicationFocusChangingUpdate( self, new_focus_widget ):
+    def _EmitTagViewAlignmentToggle( self, direction: int ):
         
-        if self._filter_panel.isVisible() and not self._filter_panel.HasText():
+        CG.client_controller.new_options.SetInteger( 'page_sidebar_alignment', direction )
+        
+        self.tagBarAlignmentChanged.emit()
+        
+    
+    def _GetDepthFromIndex( self, index: QC.QModelIndex ) -> int:
+        
+        if not index.isValid():
             
-            focus_is_on_button = new_focus_widget == self._filter_button
-            focus_is_on_panel = ClientGUIFunctions.WidgetOrAnyTLWChildHasFocus( self._filter_panel )
-            
-            if not ( focus_is_on_button or focus_is_on_panel ):
-                
-                self._HideFilterPanel()
-                
+            return -1
             
         
-        if self._history_panel.isVisible() and not self._history_panel.IsPinned():
+        depth = 0
+        parent = index.parent()
+        
+        while parent.isValid():
             
-            focus_is_on_button = new_focus_widget == self._history_button
-            focus_is_on_panel = ClientGUIFunctions.WidgetOrAnyTLWChildHasFocus( self._history_panel )
+            depth += 1
+            parent = parent.parent()
             
-            if not ( focus_is_on_button or focus_is_on_panel ):
-                
-                self._HideHistoryPanel()
-                
-            
+        
+        return depth
         
     
     def _GetEventGlobalPos( self, event ):
@@ -1822,6 +1828,70 @@ class TreeViewWithControls( QW.QWidget ):
         rect = QC.QRect( top_left, widget.rect().size() )
         
         return rect.contains( global_pos )
+        
+    
+    def _HideFilterPanel( self ):
+        
+        self._filter_panel.hide()
+        self._QueueFloatingPanelReposition()
+        
+    
+    def _HideHistoryPanel( self ):
+        
+        self._history_panel.hide()
+        self._QueueFloatingPanelReposition()
+        
+    
+    def _MoveControlBarUp( self ):
+        
+        if self._controls_at_top:
+            return
+            
+        self._vbox.removeWidget( self._controls )
+        self._vbox.insertWidget( 0, self._controls )
+        
+        self._controls_at_top = True
+        CG.client_controller.new_options.SetBoolean( 'treeview_controls_at_top', True )
+        
+    
+    def _MoveControlBarDown( self ):
+        
+        if not self._controls_at_top:
+            return
+            
+        self._vbox.removeWidget( self._controls )
+        self._vbox.addWidget( self._controls )
+        
+        self._controls_at_top = False
+        CG.client_controller.new_options.SetBoolean( 'treeview_controls_at_top', False )
+        
+    
+    def _MoveExpandingPanelToTop( self ):
+        
+        if self._panel_at_top:
+            
+            return
+            
+        
+        self._expanding_panel_splitter.widget(0).deleteLater()
+        self._expanding_panel_splitter.insertWidget( 0, self._expanding_panel )
+        
+        self._panel_at_top = True
+        CG.client_controller.new_options.SetBoolean( 'treeview_expanding_panel_at_top', True )
+        
+    
+    def _MoveExpandingPanelToBottom( self ):
+        
+        if not self._panel_at_top:
+            
+            return
+            
+        
+        self._expanding_panel_splitter.widget(0).deleteLater()
+        self._expanding_panel_splitter.addWidget( self._expanding_panel )
+        
+        self._panel_at_top = False
+        CG.client_controller.new_options.SetBoolean( 'treeview_expanding_panel_at_top', False )
         
     
     def _PositionPanelNearWidget( self, panel: QW.QWidget, widget: QW.QWidget, avoid_widgets = None ):
@@ -1878,40 +1948,50 @@ class TreeViewWithControls( QW.QWidget ):
         panel.move( x, y )
         
     
-    def _ToggleFilterPanel( self ):
+    def _QueueFloatingPanelReposition( self ):
         
-        if self._filter_panel.HasText():
+        if self._queued_floating_panel_reposition:
             
             return
+            
+        
+        self._queued_floating_panel_reposition = True
+        
+        QC.QTimer.singleShot( 0, self._RepositionFloatingPanels )
+        
+    
+    def _RepositionFloatingPanels( self ):
+        
+        self._queued_floating_panel_reposition = False
+        
+        if self._history_panel.isVisible():
+            
+            self._PositionPanelNearWidget( self._history_panel, self._history_button, [ self._filter_panel ] )
             
         
         if self._filter_panel.isVisible():
             
-            self._HideFilterPanel()
+            self._PositionPanelNearWidget( self._filter_panel, self._filter_button, [ self._history_panel ] )
             
-            return
-            
-        
-        self._PositionPanelNearWidget( self._filter_panel, self._filter_button, [ self._history_panel ] )
-        
-        self._filter_panel.show()
-        
-        self._filter_panel.activateWindow()
-        self._filter_panel.TakeFocus()
         
     
-    def _ToggleHistoryPanel( self ):
+    def _SetCurrentDepth( self, depth: int ):
         
-        if self._history_panel.isVisible():
-            
-            self._HideHistoryPanel()
+        model = self._tree.model()
+        
+        if model is None:
             
             return
             
         
-        self._history_panel.Repopulate()
-        self._PositionPanelNearWidget( self._history_panel, self._history_button, [ self._filter_panel ] )
-        self._history_panel.show()
+        max_depth = model.GetViewDepth() - 1
+        
+        self._current_depth = max( -1, min( depth, max_depth ) )
+        
+        self.depth_decrement.setEnabled( self._current_depth > -1 )
+        self.depth_increment.setEnabled( self._current_depth < max_depth )
+        self.collapse_all.setEnabled( self._current_depth > -1 )
+        self.expand_all.setEnabled( self._current_depth < max_depth )
         
     
     def _SetCurrentPagePathText( self, page_name: str, tooltip: str ):
@@ -1920,116 +2000,11 @@ class TreeViewWithControls( QW.QWidget ):
         self._current_page_path.setToolTip( tooltip )
         
     
-    def _CurrentPagePathClicked( self, event ):
-        
-        if event.button() == QC.Qt.MouseButton.LeftButton:
-            
-            if hasattr( self._tree, 'RevealCurrentSelection' ):
-                
-                self._tree.RevealCurrentSelection()
-                
-            
-            event.accept()
-            return
-            
-        
-        if event.button() == QC.Qt.MouseButton.RightButton:
-            
-            if hasattr( self._tree, 'ShowContextMenuForCurrentSelection' ):
-                
-                self._tree.ShowContextMenuForCurrentSelection()
-                
-            
-            event.accept()
-            return
-            
-        
-        event.ignore()
-        
-    
-    def _SplitterSizeChanged( self ):
-        
-        sizes = self._expanding_panel_splitter.sizes()
-        
-        CG.client_controller.new_options.SetIntegerList( 'treeview_expanding_panel_splitter_size', sizes )
-        
-    
-    def _MoveControlBarUp( self ):
-        
-        if self._controls_at_top:
-            return
-            
-        self._vbox.removeWidget( self._controls )
-        self._vbox.insertWidget( 0, self._controls )
-        
-        self._controls_at_top = True
-        CG.client_controller.new_options.SetBoolean( 'treeview_controls_at_top', True )
-        
-    
-    def _MoveControlBarDown( self ):
-        
-        if not self._controls_at_top:
-            return
-            
-        self._vbox.removeWidget( self._controls )
-        self._vbox.addWidget( self._controls )
-        
-        self._controls_at_top = False
-        CG.client_controller.new_options.SetBoolean( 'treeview_controls_at_top', False )
-        
-    
-    def _MoveExpandingPanelToTop( self ):
-        
-        if self._panel_at_top:
-            
-            return
-            
-        
-        self._expanding_panel_splitter.widget(0).deleteLater()
-        self._expanding_panel_splitter.insertWidget( 0, self._expanding_panel )
-        
-        self._panel_at_top = True
-        CG.client_controller.new_options.SetBoolean( 'treeview_expanding_panel_at_top', True )
-        
-    
-    def _MoveExpandingPanelToBottom( self ):
-        
-        if not self._panel_at_top:
-            
-            return
-            
-        
-        self._expanding_panel_splitter.widget(0).deleteLater()
-        self._expanding_panel_splitter.addWidget( self._expanding_panel )
-        
-        self._panel_at_top = False
-        CG.client_controller.new_options.SetBoolean( 'treeview_expanding_panel_at_top', False )
-        
-    
-    def _EmitAlignmentToggle( self, direction: int ):
-        
-        CG.client_controller.new_options.SetNoneableInteger( 'treeview_alignment', direction )
-        
-        self.widgetAlignmentChanged.emit()
-        
-        if self._on_toggle_alignment is not None:
-            
-            self._on_toggle_alignment( direction )
-            
-        
-    def _EmitTagViewAlignmentToggle( self, direction: int ):
-        
-        CG.client_controller.new_options.SetInteger( 'page_sidebar_alignment', direction )
-        
-        self.tagBarAlignmentChanged.emit()
-        
-    
     def _ShowCogMenu( self ):
         
         # if CG.client_controller.gui is not None:
         #     self.placeholder_long_text = str( CG.client_controller.gui.GetTotalPageCounts() ) + str( CG.client_controller.gui.GetPagesHistory() ) + self.placeholder_long_text
         #     self._expanding_panel.widget().setText( f'blah blah blah {self.placeholder_long_text}' )
-                
         
         from hydrus.client.gui import ClientGUIMenus
         
@@ -2101,6 +2076,49 @@ class TreeViewWithControls( QW.QWidget ):
         menu.exec_( QG.QCursor.pos() )
         
     
+    def _SplitterSizeChanged( self ):
+        
+        sizes = self._expanding_panel_splitter.sizes()
+        
+        CG.client_controller.new_options.SetIntegerList( 'treeview_expanding_panel_splitter_size', sizes )
+        
+    
+    def _ToggleFilterPanel( self ):
+        
+        if self._filter_panel.HasText():
+            
+            return
+            
+        
+        if self._filter_panel.isVisible():
+            
+            self._HideFilterPanel()
+            
+            return
+            
+        
+        self._PositionPanelNearWidget( self._filter_panel, self._filter_button, [ self._history_panel ] )
+        
+        self._filter_panel.show()
+        
+        self._filter_panel.activateWindow()
+        self._filter_panel.TakeFocus()
+        
+    
+    def _ToggleHistoryPanel( self ):
+        
+        if self._history_panel.isVisible():
+            
+            self._HideHistoryPanel()
+            
+            return
+            
+        
+        self._history_panel.Repopulate()
+        self._PositionPanelNearWidget( self._history_panel, self._history_button, [ self._filter_panel ] )
+        self._history_panel.show()
+        
+    
     def _ToggleTabBarVisibility( self ):
         
         CG.client_controller.new_options.FlipBoolean( 'treeview_hides_tabs' )
@@ -2115,47 +2133,34 @@ class TreeViewWithControls( QW.QWidget ):
         self.treeSidebarCollapsibilityChanged.emit()
         
     
-    def _GetDepthFromIndex( self, index: QC.QModelIndex ) -> int:
-        
-        if not index.isValid():
-            
-            return -1
-            
-        
-        depth = 0
-        parent = index.parent()
-        
-        while parent.isValid():
-            
-            depth += 1
-            parent = parent.parent()
-            
-        
-        return depth
-        
-    
-    def _SetCurrentDepth( self, depth: int ):
-        
-        model = self._tree.model()
-        
-        if model is None:
-            
-            return
-            
-        
-        max_depth = model.GetViewDepth() - 1
-        
-        self._current_depth = max( -1, min( depth, max_depth ) )
-        
-        self.depth_decrement.setEnabled( self._current_depth > -1 )
-        self.depth_increment.setEnabled( self._current_depth < max_depth )
-        self.collapse_all.setEnabled( self._current_depth > -1 )
-        self.expand_all.setEnabled( self._current_depth < max_depth )
-        
-    
     def _TreeCurrentChanged( self, current: QC.QModelIndex, previous: QC.QModelIndex ):
         
         self._SetCurrentDepth( self._GetDepthFromIndex( current ) )
+        
+    
+    def ApplicationFocusChangingUpdate( self, new_focus_widget ):
+        
+        if self._filter_panel.isVisible() and not self._filter_panel.HasText():
+            
+            focus_is_on_button = new_focus_widget == self._filter_button
+            focus_is_on_panel = ClientGUIFunctions.WidgetOrAnyTLWChildHasFocus( self._filter_panel )
+            
+            if not ( focus_is_on_button or focus_is_on_panel ):
+                
+                self._HideFilterPanel()
+                
+            
+        
+        if self._history_panel.isVisible() and not self._history_panel.IsPinned():
+            
+            focus_is_on_button = new_focus_widget == self._history_button
+            focus_is_on_panel = ClientGUIFunctions.WidgetOrAnyTLWChildHasFocus( self._history_panel )
+            
+            if not ( focus_is_on_button or focus_is_on_panel ):
+                
+                self._HideHistoryPanel()
+                
+            
         
     
     def expandToDepth( self, depth ):
