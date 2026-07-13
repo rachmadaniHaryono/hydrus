@@ -36,8 +36,6 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
         self._close_client_to_system_tray_menu_item = None
         self._start_client_in_system_tray_menu_item = None
         
-        self._just_clicked_to_show = False
-        
         icon = CC.global_icons().hydrus_system_tray
         
         self.setIcon( icon )
@@ -227,11 +225,6 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
             if not menu_regenerated:
                 
                 self._UpdateShowHideMenuItemLabel()
-                
-            
-            if not self._ui_is_currently_shown:
-                
-                self._just_clicked_to_show = False
                 
             
         
