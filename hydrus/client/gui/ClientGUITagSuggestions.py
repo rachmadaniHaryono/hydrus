@@ -4,9 +4,9 @@ from qtpy import QtCore as QC
 from qtpy import QtWidgets as QW
 
 from hydrus.core import HydrusConstants as HC
+from hydrus.core import HydrusData
 from hydrus.core import HydrusExceptions
 from hydrus.core import HydrusNumbers
-from hydrus.core import HydrusSerialisable
 from hydrus.core import HydrusTags
 from hydrus.core import HydrusTime
 
@@ -14,6 +14,8 @@ from hydrus.client import ClientApplicationCommand as CAC
 from hydrus.client import ClientConstants as CC
 from hydrus.client import ClientGlobals as CG
 from hydrus.client import ClientThreading
+from hydrus.client.gui import ClientGUIAsync
+from hydrus.client.gui import ClientGUIDialogsMessage
 from hydrus.client.gui import ClientGUIDialogsQuick
 from hydrus.client.gui import ClientGUIFunctions
 from hydrus.client.gui import QtPorting as QP
@@ -685,17 +687,17 @@ class FileLookupScriptTagsPanel( QW.QWidget ):
             
             def qt_code():
                 
-                if len( scripts ) == 0:
+                script_names_to_scripts = { script.GetName() : script for script in scripts }
+                
+                if len( script_names_to_scripts ) == 0:
                     
                     self._script_choice.addItem( 'no lookup scripts in this client', None )
                     
                 else:
                     
-                    script_names_to_scripts = { script.GetName() : script for script in scripts }
-                    
-                    for ( name, script ) in list(script_names_to_scripts.items()):
+                    for ( name, script ) in script_names_to_scripts.items():
                         
-                        self._script_choice.addItem( script.GetName(), script )
+                        self._script_choice.addItem( name, script )
                         
                     
                     new_options = CG.client_controller.new_options
@@ -706,7 +708,7 @@ class FileLookupScriptTagsPanel( QW.QWidget ):
                         
                         self._script_choice.SetValue( script_names_to_scripts[ favourite_file_lookup_script ] )
                         
-                    elif len( script_names_to_scripts ) > 0:
+                    else:
                         
                         self._script_choice.setCurrentIndex( 0 )
                         
@@ -716,7 +718,7 @@ class FileLookupScriptTagsPanel( QW.QWidget ):
                     
                 
             
-            scripts = CG.client_controller.Read( 'serialisable_named', HydrusSerialisable.SERIALISABLE_TYPE_PARSE_ROOT_FILE_LOOKUP )
+            scripts = ClientParsingLegacy.LookupScriptsCache.instance().GetScripts()
             
             CG.client_controller.CallAfterQtSafe( self, qt_code )
             
@@ -752,7 +754,41 @@ class FileLookupScriptTagsPanel( QW.QWidget ):
     
     def FetchTags( self ):
         
-        script = self._script_choice.GetValue()
+        def work_callable():
+            
+            parsed_post = script.DoQuery( job_status, file_identifier )
+            
+            tags = list( parsed_post.GetTags() )
+            
+            tag_sort = ClientTagSorting.TagSort( ClientTagSorting.SORT_BY_HUMAN_TAG, sort_order = CC.SORT_ASC )
+            
+            ClientTagSorting.SortTags( tag_sort, tags )
+            
+            return tags
+            
+        
+        def publish_callable( tags ):
+            
+            self._SetTags( tags )
+            
+            self._have_fetched = True
+            
+        
+        def errback_callable( etype, value, tb ):
+            
+            message = 'Sorry, had trouble running that lookup script! Detailed error should be in a new popup on main gui!'
+            
+            ClientGUIDialogsMessage.ShowWarning( self, message )
+            
+            HydrusData.ShowExceptionTuple( etype, value, tb, do_wait = False )
+            
+        
+        def ui_restoration_callable():
+            
+            self._fetch_button.setEnabled( True )
+            
+        
+        script: ClientParsingLegacy.ParseRootFileLookup | None = self._script_choice.GetValue()
         
         if script is None:
             
@@ -779,15 +815,18 @@ class FileLookupScriptTagsPanel( QW.QWidget ):
             file_identifier = script.ConvertMediaToFileIdentifier( m )
             
         
+        self._fetch_button.setEnabled( False )
+        self._SetTags( [] )
+        
         stop_time = HydrusTime.GetNow() + 30
         
         job_status = ClientThreading.JobStatus( cancellable = True, stop_time = stop_time )
         
         self._script_management.SetJobStatus( job_status )
         
-        self._SetTags( [] )
+        job = ClientGUIAsync.AsyncQtJob( self, work_callable, publish_callable, errback_callable = errback_callable, ui_restoration_callable = ui_restoration_callable )
         
-        CG.client_controller.CallToThread( self.THREADFetchTags, script, job_status, file_identifier )
+        job.start()
         
     
     def MediaUpdated( self ):
@@ -814,26 +853,7 @@ class FileLookupScriptTagsPanel( QW.QWidget ):
             
         
     
-    def THREADFetchTags( self, script: ClientParsingLegacy.ParseRootFileLookup, job_status, file_identifier ):
-        
-        def qt_code( tags ):
-            
-            self._SetTags( tags )
-            
-            self._have_fetched = True
-            
-        
-        parsed_post = script.DoQuery( job_status, file_identifier )
-        
-        tags = list( parsed_post.GetTags() )
-        
-        tag_sort = ClientTagSorting.TagSort( ClientTagSorting.SORT_BY_HUMAN_TAG, sort_order = CC.SORT_ASC )
-        
-        ClientTagSorting.SortTags( tag_sort, tags )
-        
-        CG.client_controller.CallAfterQtSafe( self, qt_code, tags )
-        
-    
+
 class SuggestedTagsPanel( QW.QWidget ):
     
     mouseActivationOccurred = QC.Signal()
