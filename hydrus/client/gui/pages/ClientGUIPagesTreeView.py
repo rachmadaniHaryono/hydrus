@@ -1628,6 +1628,7 @@ class TreeViewWithControls( QW.QWidget ):
         #
         
         self._current_page_path = QW.QLabel( '', self._controls )
+        self._current_page_path.setFrameStyle( QW.QFrame.Shape.Panel | QW.QFrame.Shadow.Sunken )
         self._current_page_path.setToolTip( ClientGUIFunctions.WrapToolTip( 'Current page' ) )
         self._current_page_path.setSizePolicy( QW.QSizePolicy.Policy.Ignored, QW.QSizePolicy.Policy.Preferred )
         self._current_page_path.setCursor( QC.Qt.CursorShape.PointingHandCursor )
