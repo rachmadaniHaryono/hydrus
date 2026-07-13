@@ -610,7 +610,8 @@ class RelatedTagsPanel( QW.QWidget ):
         
         if not self._have_done_search_with_this_search_context:
             
-            self._RepeatLastSearch()
+            # if we schedule this in _this_ qt event, it tends to crowd out stuff like dialog init. so let's give at least on frame of break
+            CG.client_controller.CallAfterQtSafe( self, self._RepeatLastSearch )
             
         
     
@@ -959,7 +960,7 @@ class SuggestedTagsPanel( QW.QWidget ):
                 self._notebook.setCurrentWidget( choice )
                 
             
-            self._notebook.currentChanged.connect( self._PageChanged )
+            self._notebook.currentChanged.connect( self._UpdateRelatedTagsIfVisible )
             
         elif layout_mode == 'columns':
             
@@ -981,24 +982,15 @@ class SuggestedTagsPanel( QW.QWidget ):
             
         else:
             
-            self._PageChanged()
+            self._UpdateRelatedTagsIfVisible()
             
         
     
-    def _PageChanged( self ):
+    def _UpdateRelatedTagsIfVisible( self ):
         
         if self._related_tags is not None:
             
-            if self._notebook is None:
-                
-                self._related_tags.NotifyUserLooking()
-                
-                return
-                
-            
-            current_page = self._notebook.currentWidget()
-            
-            if current_page == self._related_tags:
+            if self._related_tags.isVisible():
                 
                 self._related_tags.NotifyUserLooking()
                 
@@ -1025,6 +1017,14 @@ class SuggestedTagsPanel( QW.QWidget ):
         if self._related_tags is not None:
             
             self._related_tags.MediaUpdated()
+            
+        
+    
+    def NotifyPageChange( self ):
+        
+        if self.isVisible():
+            
+            self._UpdateRelatedTagsIfVisible()
             
         
     
@@ -1059,8 +1059,6 @@ class SuggestedTagsPanel( QW.QWidget ):
             
             self._related_tags.SetMedia( media )
             
-        
-        self._PageChanged()
         
     
     def SetSelectedTags( self, tags ):

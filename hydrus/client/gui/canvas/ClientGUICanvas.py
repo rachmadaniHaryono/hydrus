@@ -608,9 +608,6 @@ class Canvas( CAC.ApplicationCommandProcessorMixin, QW.QWidget ):
                 
             
         
-        # take any focus away from hover window, which will mess up window order when it hides due to the new frame
-        self.setFocus( QC.Qt.FocusReason.OtherFocusReason )
-        
         title = 'manage tags'
         frame_key = 'manage_tags_frame'
         
