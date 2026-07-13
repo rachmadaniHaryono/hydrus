@@ -7385,8 +7385,7 @@ The password is cleartext here but obscured in the entry dialog. Enter a blank p
             
             self._system_tray_icon.SetShouldAlwaysShow( always_show_system_tray_icon )
             self._system_tray_icon.SetUIIsCurrentlyShown( not self._currently_hidden_to_system_tray )
-            self._system_tray_icon.SetNetworkTrafficPaused( new_options.GetBoolean( 'pause_all_new_network_traffic' ) )
-            self._system_tray_icon.SetSubscriptionsPaused( new_options.GetBoolean( 'pause_subs_sync' ) )
+            self._system_tray_icon.RegenOptionsCheckboxes()
             
         else:
             

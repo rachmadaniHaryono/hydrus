@@ -27,12 +27,14 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
         
         self._ui_is_currently_shown = True
         self._should_always_show = False
-        self._network_traffic_paused = False
-        self._subscriptions_paused = False
         
         self._show_hide_menu_item = None
         self._network_traffic_menu_item = None
         self._subscriptions_paused_menu_item = None
+        
+        self._minimise_client_to_system_tray_menu_item = None
+        self._close_client_to_system_tray_menu_item = None
+        self._start_client_in_system_tray_menu_item = None
         
         self._just_clicked_to_show = False
         
@@ -52,6 +54,13 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
         CG.client_controller.CallAfterQtSafe( self, self._WasActivated, activation_reason )
         
     
+    def _FlipSimpleBool( self, name ):
+        
+        CG.client_controller.new_options.FlipBoolean( name )
+        
+        self._UpdateSimpleBooleanMenuItemChecks()
+        
+    
     def _RegenerateMenu( self ):
         
         # I'm not a qwidget, but a qobject, so use my parent for this
@@ -65,11 +74,17 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
         
         self._network_traffic_menu_item = ClientGUIMenus.AppendMenuCheckItem( new_menu, 'pause network traffic', 'Pause/resume network traffic', False, self.flip_pause_network_jobs.emit )
         
-        self._UpdateNetworkTrafficMenuItemCheck()
-        
         self._subscriptions_paused_menu_item = ClientGUIMenus.AppendMenuCheckItem( new_menu, 'pause subscriptions', 'Pause/resume subscriptions', False, self.flip_pause_subscription_jobs.emit )
         
-        self._UpdateSubscriptionsMenuItemCheck()
+        ClientGUIMenus.AppendSeparator( new_menu )
+        
+        options_menu = ClientGUIMenus.GenerateMenu( new_menu )
+        
+        self._minimise_client_to_system_tray_menu_item = ClientGUIMenus.AppendMenuCheckItem( options_menu, 'minimise client to system tray', 'Set whether the client should shrink to the taskbar on minimise or hide to system tray.', False, self._FlipSimpleBool, 'minimise_client_to_system_tray' )
+        self._close_client_to_system_tray_menu_item = ClientGUIMenus.AppendMenuCheckItem( options_menu, 'close client to system tray', 'Set whether the client should exit the program on close or hide to system tray.', False, self._FlipSimpleBool, 'close_client_to_system_tray' )
+        self._start_client_in_system_tray_menu_item = ClientGUIMenus.AppendMenuCheckItem( options_menu, 'start client in system tray', 'Set whether the client should boot up hidden to system tray.', False, self._FlipSimpleBool, 'start_client_in_system_tray' )
+        
+        ClientGUIMenus.AppendMenu( new_menu, options_menu, 'options' )
         
         ClientGUIMenus.AppendSeparator( new_menu )
         
@@ -79,6 +94,8 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
         
         old_menu = self.contextMenu()
         
+        self.RegenOptionsCheckboxes()
+        
         self.setContextMenu( new_menu )
         
         if old_menu is not None:
@@ -86,20 +103,18 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
             ClientGUIMenus.DestroyMenu( old_menu )
             
         
-        self._UpdateTooltip()
-        
     
     def _UpdateNetworkTrafficMenuItemCheck( self ):
         
         if self._network_traffic_menu_item is not None:
             
-            self._network_traffic_menu_item.setChecked( self._network_traffic_paused )
+            self._network_traffic_menu_item.setChecked( CG.client_controller.new_options.GetBoolean( 'pause_all_new_network_traffic' ) )
             
         
     
     def _UpdateShowHideMenuItemLabel( self ):
         
-        label = 'hide' if self._ui_is_currently_shown else 'show'
+        label = 'hide to system tray' if self._ui_is_currently_shown else 'show'
         
         self._show_hide_menu_item.setText( label )
         
@@ -127,11 +142,29 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
         return menu_regenerated
         
     
+    def _UpdateSimpleBooleanMenuItemChecks( self ):
+        
+        if self._minimise_client_to_system_tray_menu_item is not None:
+            
+            self._minimise_client_to_system_tray_menu_item.setChecked( CG.client_controller.new_options.GetBoolean( 'minimise_client_to_system_tray' ) )
+            
+        
+        if self._close_client_to_system_tray_menu_item is not None:
+            
+            self._close_client_to_system_tray_menu_item.setChecked( CG.client_controller.new_options.GetBoolean( 'close_client_to_system_tray' ) )
+            
+        
+        if self._start_client_in_system_tray_menu_item is not None:
+            
+            self._start_client_in_system_tray_menu_item.setChecked( CG.client_controller.new_options.GetBoolean( 'start_client_in_system_tray' ) )
+            
+        
+    
     def _UpdateSubscriptionsMenuItemCheck( self ):
         
         if self._subscriptions_paused_menu_item is not None:
             
-            self._subscriptions_paused_menu_item.setChecked( self._subscriptions_paused )
+            self._subscriptions_paused_menu_item.setChecked( CG.client_controller.new_options.GetBoolean( 'pause_subs_sync' ) )
             
         
     
@@ -141,12 +174,12 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
         
         tt = app_display_name
         
-        if self._network_traffic_paused:
+        if CG.client_controller.new_options.GetBoolean( 'pause_all_new_network_traffic' ):
             
             tt = '{} - network traffic paused'.format( tt )
             
         
-        if self._subscriptions_paused:
+        if CG.client_controller.new_options.GetBoolean( 'pause_subs_sync' ):
             
             tt = '{} - subscriptions paused'.format( tt )
             
@@ -174,28 +207,13 @@ class ClientSystemTrayIcon( QW.QSystemTrayIcon ):
             
         
     
-    def SetNetworkTrafficPaused( self, network_traffic_paused: bool ):
+    def RegenOptionsCheckboxes( self ):
         
-        if network_traffic_paused != self._network_traffic_paused:
-            
-            self._network_traffic_paused = network_traffic_paused
-            
-            self._UpdateNetworkTrafficMenuItemCheck()
-            
-            self._UpdateTooltip()
-            
+        self._UpdateNetworkTrafficMenuItemCheck()
+        self._UpdateSubscriptionsMenuItemCheck()
+        self._UpdateSimpleBooleanMenuItemChecks()
         
-    
-    def SetSubscriptionsPaused( self, subscriptions_paused: bool ):
-        
-        if subscriptions_paused != self._subscriptions_paused:
-            
-            self._subscriptions_paused = subscriptions_paused
-            
-            self._UpdateSubscriptionsMenuItemCheck()
-            
-            self._UpdateTooltip()
-            
+        self._UpdateTooltip()
         
     
     def SetUIIsCurrentlyShown( self, ui_is_currently_shown: bool ):
