@@ -1582,8 +1582,6 @@ class TreeViewWithControls( QW.QWidget ):
         self._controls_at_top = CG.client_controller.new_options.GetBoolean( 'treeview_controls_at_top' )
         self._panel_at_top = CG.client_controller.new_options.GetBoolean( 'treeview_expanding_panel_at_top' )
         
-        self._history_seen_inside_click = False
-        
         #
         
         self._controls = QW.QWidget( self )
@@ -1913,7 +1911,6 @@ class TreeViewWithControls( QW.QWidget ):
         
         self._history_panel.Repopulate()
         self._PositionPanelNearWidget( self._history_panel, self._history_button, [ self._filter_panel ] )
-        self._history_seen_inside_click = False
         self._history_panel.show()
         
     
