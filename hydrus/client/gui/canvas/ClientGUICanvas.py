@@ -843,7 +843,7 @@ class Canvas( CAC.ApplicationCommandProcessorMixin, QW.QWidget ):
         return self._current_media
         
     
-    def HandleMouseMoveWithoutEvent( self, is_dragging: bool ):
+    def HandleMouseMoveWithoutEvent( self, left_down: bool ):
         
         pass
         
@@ -3029,7 +3029,7 @@ class CanvasWithHovers( Canvas ):
             
         elif not should_be_hidden and not mouse_currently_shown:
             
-            self.unsetCursor()
+            self.setCursor( QG.QCursor( QC.Qt.CursorShape.ArrowCursor ) )
             
         
         self._cursor_autohide_timer.start( next_check_period_ms )
@@ -3179,7 +3179,7 @@ class CanvasWithHovers( Canvas ):
                 
                 if not mouse_currently_shown:
                     
-                    self.unsetCursor()
+                    self.setCursor( QG.QCursor( QC.Qt.CursorShape.ArrowCursor ) )
                     
                 
                 self._RestartCursorHideWait()
