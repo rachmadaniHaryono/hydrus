@@ -639,15 +639,8 @@ class MPVMediatorPolite( MPVMediator ):
                 
                 self._seek_time_and_precise_to_do_after_current_seek_done = None
                 
-            else:
+                self.Seek( seek_time, precise = precise )
                 
-                ( seek_time, precise ) = ( None, None )
-                
-            
-        
-        if seek_time is not None:
-            
-            self.Seek( seek_time, precise = precise )
             
         
     
