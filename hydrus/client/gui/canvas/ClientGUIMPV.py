@@ -639,9 +639,13 @@ class MPVMediatorPolite( MPVMediator ):
                 
                 self._seek_time_and_precise_to_do_after_current_seek_done = None
                 
-                self.Seek( seek_time, precise = precise )
+            else:
+                
+                return
                 
             
+        
+        self.Seek( seek_time, precise = precise )
         
     
     def ResetForNewMedia( self, paused: bool ):
