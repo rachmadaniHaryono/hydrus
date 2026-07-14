@@ -4386,7 +4386,18 @@ class DB( HydrusDB.HydrusDB ):
         
         #
         
-        self.modules_files_maintenance = ClientDBFilesMaintenance.ClientDBFilesMaintenance( self._c, self.modules_files_maintenance_queue, self.modules_hashes, self.modules_hashes_local_cache, self.modules_files_metadata_basic, self.modules_files_timestamps, self.modules_similar_files, self.modules_repositories, self.modules_media_results )
+        self.modules_files_maintenance = ClientDBFilesMaintenance.ClientDBFilesMaintenance(
+            self._c,
+            self.modules_files_maintenance_queue,
+            self.modules_hashes,
+            self.modules_hashes_local_cache,
+            self.modules_files_metadata_basic,
+            self.modules_files_timestamps,
+            self.modules_similar_files,
+            self.modules_repositories,
+            self.modules_media_results,
+            self.modules_files_duplicates_auto_resolution_storage
+        )
         
         self._modules.append( self.modules_files_maintenance )
         

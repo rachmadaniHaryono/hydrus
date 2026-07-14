@@ -660,16 +660,7 @@ class ClientDBSimilarFiles( ClientDBModule.ClientDBModule ):
             
         
     
-    def AssociatePerceptualHashes( self, hash_id, perceptual_hashes ):
-        
-        perceptual_hash_ids = set()
-        
-        for perceptual_hash in perceptual_hashes:
-            
-            perceptual_hash_id = self._GetPerceptualHashId( perceptual_hash )
-            
-            perceptual_hash_ids.add( perceptual_hash_id )
-            
+    def AssociatePerceptualHashes( self, hash_id, perceptual_hash_ids ):
         
         self._ExecuteMany( 'INSERT OR IGNORE INTO shape_perceptual_hash_map ( phash_id, hash_id ) VALUES ( ?, ? );', ( ( perceptual_hash_id, hash_id ) for perceptual_hash_id in perceptual_hash_ids ) )
         
@@ -687,8 +678,6 @@ class ClientDBSimilarFiles( ClientDBModule.ClientDBModule ):
             
         
         self._DeltaShapeSearchCacheNumbers( -1, 1 )
-        
-        return perceptual_hash_ids
         
     
     def ClearPixelHash( self, hash_id: int ):
@@ -1189,6 +1178,13 @@ class ClientDBSimilarFiles( ClientDBModule.ClientDBModule ):
     
     def SetPixelHash( self, hash_id: int, pixel_hash_id: int ):
         
+        existing_pixel_hash_id = self._GetPixelHashId( hash_id )
+        
+        if existing_pixel_hash_id is not None and existing_pixel_hash_id == pixel_hash_id:
+            
+            return False
+            
+        
         self.ClearPixelHash( hash_id )
         
         self._Execute( 'INSERT INTO pixel_hash_map ( hash_id, pixel_hash_id ) VALUES ( ?, ? );', ( hash_id, pixel_hash_id ) )
@@ -1204,10 +1200,26 @@ class ClientDBSimilarFiles( ClientDBModule.ClientDBModule ):
             self._DeltaShapeSearchCacheNumbers( -1, 1 )
             
         
+        return True
+        
     
     def SetPerceptualHashes( self, hash_id, perceptual_hashes ):
         
         current_perceptual_hash_ids = self._STS( self._Execute( 'SELECT phash_id FROM shape_perceptual_hash_map WHERE hash_id = ?;', ( hash_id, ) ) )
+        
+        perceptual_hash_ids = set()
+        
+        for perceptual_hash in perceptual_hashes:
+            
+            perceptual_hash_id = self._GetPerceptualHashId( perceptual_hash )
+            
+            perceptual_hash_ids.add( perceptual_hash_id )
+            
+        
+        if perceptual_hash_ids == current_perceptual_hash_ids:
+            
+            return False
+            
         
         if len( current_perceptual_hash_ids ) > 0:
             
@@ -1216,8 +1228,10 @@ class ClientDBSimilarFiles( ClientDBModule.ClientDBModule ):
         
         if len( perceptual_hashes ) > 0:
             
-            self.AssociatePerceptualHashes( hash_id, perceptual_hashes )
+            self.AssociatePerceptualHashes( hash_id, perceptual_hash_ids )
             
+        
+        return True
         
     
     def SetSearchStatus( self, hash_id, search_distance ):
