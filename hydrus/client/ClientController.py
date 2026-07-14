@@ -1250,6 +1250,10 @@ class Controller( HydrusController.HydrusController ):
     
     def ReinitGlobalSettings( self ):
         
+        from hydrus.core.files import HydrusFileHandling
+        
+        HydrusFileHandling.ALLOW_COMIC_BOOK_ARCHIVE_INSPECTION = self.new_options.GetBoolean( 'allow_comic_book_archive_detection' )
+        
         from hydrus.core.files.images import HydrusImageHandling
         from hydrus.core.files.images import HydrusImageNormalisation
         from hydrus.core.files.images import HydrusImageColours
