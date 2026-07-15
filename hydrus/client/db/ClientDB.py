@@ -8342,7 +8342,9 @@ class DB( HydrusDB.HydrusDB ):
                 
                 if not self._IdealIndexExists( table_name, columns ):
                     
-                    self._CreateIndex( table_name, columns )
+                    self._CreateIndex( table_name, columns, unique = True )
+                    
+                    self.modules_db_maintenance.AnalyzeTable( 'confirmed_alternate_pairs' )
                     
                 
             except Exception as e:
@@ -8379,7 +8381,6 @@ class DB( HydrusDB.HydrusDB ):
                 self.pub_initial_message( message )
                 
             
-        
         
         #
         
