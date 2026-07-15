@@ -1356,8 +1356,8 @@ def ShowFileEmbeddedMetadata( win: QW.QWidget, media: ClientMediaSingle.MediaSin
                         
                         extra_rows.append( ( 'subsampling', HydrusImageMetadata.subsampling_str_lookup[ HydrusImageMetadata.GetJpegSubsamplingRaw( raw_pil_image ) ] ) )
                         
-                    
-                    extra_rows.append( ( 'progressive', 'yes' if 'progression' in raw_pil_image.info else 'no' ) )
+                        extra_rows.append( ( 'progressive', 'yes' if 'progression' in raw_pil_image.info else 'no' ) )
+                        
                     
                     if 'srgb' in raw_pil_image.info:
                         
