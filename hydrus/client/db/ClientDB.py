@@ -8357,6 +8357,32 @@ class DB( HydrusDB.HydrusDB ):
                 
             
         
+        if version == 679:
+            
+            try:
+                
+                self._controller.frame_splash_status.SetSubtext( f'scheduling some maintenance work' )
+                
+                ( current_files_table_name, deleted_files_table_name, pending_files_table_name, petitioned_files_table_name ) = ClientDBFilesStorage.GenerateFilesTableNames( self.modules_services.combined_local_file_domains_service_id )
+                
+                # broke cbz thumbs by accident ~2026-07-05
+                july_5_timestamp = 1783227600
+                
+                hash_ids = self._STS( self._Execute( f'SELECT hash_id FROM {current_files_table_name} CROSS JOIN files_info USING ( hash_id ) WHERE mime IN {HydrusLists.SplayListForDB( ( HC.APPLICATION_CBZ, ) )} AND timestamp_ms > ?;', ( july_5_timestamp, ) ) )
+                
+                self.modules_files_maintenance_queue.AddJobs( hash_ids, ClientFilesMaintenance.REGENERATE_FILE_DATA_JOB_FORCE_THUMBNAIL )
+                
+            except Exception as e:
+                
+                HydrusData.PrintException( e )
+                
+                message = 'Some file maintenance failed to schedule! This is not super important, but hydev would be interested in seeing the error that was printed to the log.'
+                
+                self.pub_initial_message( message )
+                
+            
+            
+        
         if False: # on version where we are happy with human-readable file metadata. do not want to pull the trigger on this big job until we are content
             
             try:
