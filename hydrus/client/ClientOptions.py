@@ -378,6 +378,7 @@ class ClientOptions( HydrusSerialisable.SerialisableBase ):
             'allow_comic_book_archive_detection' : True,
             'minimise_client_to_system_tray_bugfix_deferred_state_set' : False,
             'minimise_client_to_system_tray_bugfix_restore_after_show' : False,
+            'use_qt_locale_for_human_int' : False,
         }
         
         #
