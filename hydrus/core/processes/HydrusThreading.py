@@ -402,6 +402,10 @@ class THREADCallToThread( DAEMON ):
             
             while True:
                 
+                # TODO: Assuming sentinel works out, clear up/out the empty wait, the queue.Empty handling, maybe the threading wait/yield later
+                # and of course tighten up shutdown sentinel call
+                # and replicate to HydrusDB and file parsing and anywhere else
+                
                 while self._queue.empty():
                     
                     CheckIfThreadShuttingDown()
