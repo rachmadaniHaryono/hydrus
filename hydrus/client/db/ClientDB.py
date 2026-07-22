@@ -8366,9 +8366,9 @@ class DB( HydrusDB.HydrusDB ):
                 ( current_files_table_name, deleted_files_table_name, pending_files_table_name, petitioned_files_table_name ) = ClientDBFilesStorage.GenerateFilesTableNames( self.modules_services.combined_local_file_domains_service_id )
                 
                 # broke cbz thumbs by accident ~2026-07-05
-                july_5_timestamp = 1783227600
+                july_5_timestamp_ms = 1783227600000
                 
-                hash_ids = self._STS( self._Execute( f'SELECT hash_id FROM {current_files_table_name} CROSS JOIN files_info USING ( hash_id ) WHERE mime IN {HydrusLists.SplayListForDB( ( HC.APPLICATION_CBZ, ) )} AND timestamp_ms > ?;', ( july_5_timestamp, ) ) )
+                hash_ids = self._STS( self._Execute( f'SELECT hash_id FROM {current_files_table_name} CROSS JOIN files_info USING ( hash_id ) WHERE mime IN {HydrusLists.SplayListForDB( ( HC.APPLICATION_CBZ, ) )} AND timestamp_ms > ?;', ( july_5_timestamp_ms, ) ) )
                 
                 self.modules_files_maintenance_queue.AddJobs( hash_ids, ClientFilesMaintenance.REGENERATE_FILE_DATA_JOB_FORCE_THUMBNAIL )
                 
